@@ -1,136 +1,124 @@
 # Write-Right
 
-A serious essay-writing environment that surfaces revision insights without writing for you.
-
----
-
-## Philosophy
-
-Write-Right is built on a simple principle: **great writing comes from thoughtful revision, not automation.**
-
-This tool analyzes your draft and surfaces signals about clarity, structure, flow, and argument strength. It helps you see your writing more clearly — but every word remains yours.
-
-> *Designed to improve your writing — not replace it.*
+A desktop writing tool that helps students improve their essays through real-time feedback — without writing for them.
 
 ---
 
 ## What It Does
 
-**Draft Analysis** scans your essay and surfaces:
+Write-Right analyzes your essay and surfaces issues in four categories:
 
-- **Mechanics** — Spelling, punctuation, capitalization
-- **Clarity** — Sentence length, passive constructions, filler words, repetition
-- **Flow** — Paragraph structure, transitions, intro/conclusion strength
-- **Argument** — Unsupported claims, questionable absolutes
+| Category | What It Checks |
+|----------|----------------|
+| **Grammar** | Spelling, punctuation, capitalization |
+| **Clarity** | Sentence length, passive voice, filler words, repetition |
+| **Structure** | Paragraph length, transitions, intro/conclusion |
+| **Argument** | Unsupported claims, absolute statements |
 
-Each signal includes:
-- A severity level (critical, needs review, optional refinement)
-- An explanation of the pattern detected
-- Revision guidance on how to address it
-- Optional micro-suggestions (short phrases only)
+Each issue includes:
+- What's wrong
+- Why it matters  
+- How to fix it
+- Suggested alternatives (when applicable)
 
-**What it won't do:**
-- Write paragraphs or sentences for you
-- Rewrite your text
-- Use external AI/LLM services
-- Replace your judgment as a writer
+**What it won't do:** Write content for you, rewrite sentences, or use AI to generate text.
 
 ---
 
-## How to Run
+## Use Cases
 
+- **Students** writing essays who want feedback before submitting
+- **Self-editing** to catch common writing issues
+- **Learning** what makes writing clear and effective
+- **ESL writers** improving grammar and style
+
+---
+
+## Quick Start
+
+### 1. Install dependencies
 ```bash
 npm install
+```
+
+### 2. Run the app
+```bash
 npm run dev
 ```
 
-Press **⌘↵** (or **Ctrl+Enter**) to analyze your draft.
+### 3. Write and analyze
+- Type or paste your essay in the editor
+- Click **Analyze** or press **⌘↵** (Ctrl+Enter on Windows)
+- Click any issue to jump to that location in your text
 
 ---
 
-## Interface
+## Enhanced Grammar with LanguageTool (Optional)
 
+For more accurate grammar checking, you can run LanguageTool locally via Docker.
+
+### Setup
+
+**1. Install Docker Desktop** (if you don't have it):  
+https://www.docker.com/products/docker-desktop/
+
+**2. Start LanguageTool server:**
+```bash
+docker run -d -p 8010:8010 silviof/docker-languagetool
 ```
-┌─────────────────────────────────────────────────────────────┐
-│ Write-Right          450 words  |  2 min  |  78 quality    │
-├─────────────────────────────────────────────────────────────┤
-│                              │                              │
-│    DRAFT (Hero)              │    REVISION INSIGHTS         │
-│                              │    ─────────────────         │
-│    Your essay lives          │    [Mechanics] [Clarity]     │
-│    here. Distraction-        │    [Flow] [Argument]         │
-│    free, serif type,         │    [Checklist]               │
-│    generous spacing.         │                              │
-│                              │    Signals appear here       │
-│                              │    with guidance on how      │
-│                              │    to revise.                │
-│                              │                              │
-├─────────────────────────────────────────────────────────────┤
-│          Designed to improve your writing — not replace it. │
-└─────────────────────────────────────────────────────────────┘
+This downloads ~1GB on first run and takes ~15 seconds to start.
+
+**3. Verify it's running:**
+```bash
+curl http://localhost:8010/v2/check -d "language=en-US&text=This is a tset."
+```
+You should see JSON with a spelling correction for "tset" → "test".
+
+**4. Run Write-Right with LanguageTool:**
+```bash
+LANGUAGETOOL_MODE=api LANGUAGETOOL_URL=http://localhost:8010/v2/check npm run dev
 ```
 
----
+### Without LanguageTool
 
-## Architecture
+By default, Write-Right uses built-in pattern matching for common errors. This is faster but catches fewer issues.
 
-```
-src/
-├── backend/
-│   ├── agents/
-│   │   └── writingCoach.ts    # Deterministic analysis engine
-│   ├── routes/
-│   │   ├── analyze.ts         # POST /analyze
-│   │   ├── autosave.ts        # Draft persistence
-│   │   └── log.ts             # Interaction logging
-│   └── server.ts
-├── renderer/
-│   ├── components/
-│   │   ├── InsightsPanel.tsx  # Revision signals panel
-│   │   └── Editor.tsx         # Draft editor (hero)
-│   ├── App.tsx
-│   ├── types.ts
-│   └── styles.css
-└── main/
-    └── index.ts               # Electron main process
+```bash
+npm run dev
 ```
 
 ---
 
-## Design Decisions
+## How It Works
 
-### Guardrails Against Content Generation
-
-The analysis engine enforces strict limits:
-- No suggestion exceeds 15 words
-- No multi-sentence outputs
-- No paragraph rewrites
-- Truncation enforced in code (`truncateSuggestion()`)
-
-### Terminology
-
-We deliberately avoid:
-- "AI", "assistant", "coach", "generate", "rewrite"
-
-We use:
-- "Draft Analysis", "Revision Insights", "Signals", "Guidance"
-
-This reinforces that the tool supports human authorship, not automation.
-
-### Visual Hierarchy
-
-- **Editor is the hero** — large, serif type, generous margins
-- **Insights panel is supportive** — smaller, utility styling, subtle background
-- **Footer badge** — constant reminder of the tool's integrity
+```
+┌─────────────────────────────────────────────────────────┐
+│  Write-Right           150 words    [85 quality]  [Analyze]  │
+├─────────────────────────────────────────────────────────┤
+│                              │                          │
+│   Your essay goes here.      │  Grammar  Clarity  ...   │
+│   Write freely in this       │  ────────────────────    │
+│   distraction-free editor.   │                          │
+│                              │  ⚠ Passive voice         │
+│   Click any issue on the     │  "was written"           │
+│   right to jump to that      │  Try active voice...     │
+│   location in your text.     │                          │
+│                              │  ⚠ Long sentence         │
+│                              │  45 words - consider...  │
+│                              │                          │
+└─────────────────────────────────────────────────────────┘
+```
 
 ---
 
 ## Tech Stack
 
-- **Frontend**: Electron + React + TypeScript
-- **Backend**: Node.js + Express (local server)
-- **Storage**: Local filesystem (JSONL logs, text drafts)
-- **External APIs**: None. 100% offline, deterministic.
+- **Frontend:** Electron + React + TypeScript
+- **Backend:** Node.js + Express (local server)
+- **Grammar:** LanguageTool (optional) or built-in heuristics
+- **Storage:** Local filesystem only
+
+**No cloud services. No AI APIs. Everything runs locally.**
 
 ---
 
@@ -138,30 +126,44 @@ This reinforces that the tool supports human authorship, not automation.
 
 | Shortcut | Action |
 |----------|--------|
-| ⌘↵ / Ctrl+Enter | Analyze draft |
+| ⌘↵ / Ctrl+Enter | Analyze essay |
 
 ---
 
-## What Changed (v2 Refinement)
+## Project Structure
 
-### Product Identity
-- Renamed panel from "Writing Coach" → "Revision Insights"
-- Replaced "Analyze" → "Analyze Draft"
-- Changed "issues" → "signals"
-- Updated all copy to emphasize craftsmanship and revision
+```
+src/
+├── backend/
+│   ├── agents/
+│   │   └── writingCoach.ts    # Analysis engine
+│   ├── routes/
+│   │   ├── analyze.ts         # POST /analyze
+│   │   └── autosave.ts        # Draft persistence
+│   └── server.ts
+├── renderer/
+│   ├── components/
+│   │   └── InsightsPanel.tsx  # Issue display
+│   ├── App.tsx                # Main UI
+│   └── styles.css
+└── main/
+    └── index.ts               # Electron entry
+```
 
-### UI Polish
-- Editor now uses serif typography with generous line height
-- Clearer visual hierarchy: editor as hero, insights as supportive
-- Refined color system for severity (critical/warning/info)
-- Added "Last analyzed X ago" indicator
-- Added integrity badge in footer
-- Improved spacing, typography scale, and hover states
+---
 
-### Interaction Model
-- Removed any language suggesting content generation
-- Signals described as patterns to notice, not corrections to accept
-- "Revision guidance" instead of "How to fix"
+## Development
+
+```bash
+# Run in development mode
+npm run dev
+
+# With LanguageTool
+LANGUAGETOOL_MODE=api LANGUAGETOOL_URL=http://localhost:8010/v2/check npm run dev
+
+# Stop LanguageTool container
+docker stop $(docker ps -q --filter ancestor=silviof/docker-languagetool)
+```
 
 ---
 
