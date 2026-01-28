@@ -147,7 +147,34 @@ function App() {
   const handleInsertResponse = () => {
     if (!assistantResponse || !editorRef.current) return;
 
-    const textToInsert = `\n\n[${assistantResponse.mode.toUpperCase()}: ${assistantResponse.summary}]\n`;
+    const lines: string[] = [];
+    lines.push('---');
+    lines.push(`Assistant (${assistantResponse.mode.toUpperCase()})`);
+    lines.push('');
+    lines.push(assistantResponse.summary);
+
+    if (assistantResponse.bullets?.length) {
+      lines.push('');
+      assistantResponse.bullets.forEach(b => lines.push(`- ${b}`));
+    }
+
+    if (assistantResponse.examples?.length) {
+      lines.push('');
+      lines.push('Examples:');
+      assistantResponse.examples.forEach(e => lines.push(`- ${e}`));
+    }
+
+    if (assistantResponse.outline?.length) {
+      lines.push('');
+      lines.push('Outline:');
+      assistantResponse.outline.forEach(o => lines.push(`- ${o}`));
+    }
+
+    lines.push('');
+    lines.push(`Follow-up: ${assistantResponse.followUpQuestion}`);
+    lines.push('---');
+
+    const textToInsert = `\n\n${lines.join('\n')}\n`;
     const textarea = editorRef.current;
     const start = textarea.selectionStart;
     const end = textarea.selectionEnd;

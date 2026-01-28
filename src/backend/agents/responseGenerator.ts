@@ -12,6 +12,24 @@ export type SelectionType = 'TERM' | 'SNIPPET';
 type WritingTone = 'argumentative' | 'explanatory' | 'mixed';
 type ContentRole = 'claim' | 'definition' | 'example' | 'other';
 
+type GlossaryEntry = {
+  definition: string;
+  whyItMatters: string;
+  analogy: string;
+};
+
+// Tiny offline glossary for common student terms (keep small + extensible).
+const KNOWN_TERMS: Record<string, GlossaryEntry> = {
+  cervix: {
+    definition:
+      'The cervix is the lower, narrow part of the uterus that opens into the vagina.',
+    whyItMatters:
+      'It matters because it plays a key role in reproduction and pregnancy (it can stay closed during pregnancy and dilate during childbirth).',
+    analogy:
+      'Think of it like a doorway between the uterus and the vagina that can open or close depending on what the body needs.',
+  },
+};
+
 export interface AssistResponse {
   mode: AssistMode;
   selectionType: SelectionType;
@@ -219,14 +237,20 @@ function generateExplainResponse(
     : 'Looking at the nearby sentences helps clarify how a reader will understand it.';
 
   if (type === 'TERM') {
+    const termKey = selection.trim().toLowerCase();
+    const known = KNOWN_TERMS[termKey];
+    const definition = known?.definition ?? `"${selection}" is a key term in this passage.`;
+    const why = known?.whyItMatters ?? 'It matters here because it anchors what your reader should understand before the rest of the point makes sense.';
+    const analogy = known?.analogy ?? 'A quick analogy: treat it like a “label” for an idea—once defined, everything else can build on it.';
+
     return {
       mode: 'explain',
       selectionType: 'TERM',
-      summary: `"${selection}" is a key term in this passage. In your context, it helps anchor the main idea and signals what the reader should pay attention to.`,
+      summary: `${definition} ${why} ${analogy}`,
       bullets: [
-        'Use the sentence right before or after to briefly define what this term means for you.',
+        'Add a brief definition the first time you use it (one sentence is enough).',
         'Connect the term directly to your overall claim or research question.',
-        'Avoid jargon—explain it in language that a classmate in a different major would still understand.'
+        'If this is a biology/anatomy term, consider adding one concrete detail (location, function, or why it’s relevant).'
       ],
       followUpQuestion: `In one sentence, how would you define "${selection}" for a friend outside this class?`,
       reasoningNotes: `Classified as TERM because the selection is short and lacks sentence punctuation. Detected ${writingTone} tone and ${role} role, so the response focuses on clarifying the concept, tying it to your argument, and encouraging you to use nearby sentences for definition. ${nearbyRef}`
