@@ -1,14 +1,13 @@
 :root {
-  --bg: #f7f6f3;
+  --bg: #f7f7f7;
   --surface: #ffffff;
-  --surface-muted: #fbfbfa;
-  --text: #2f3437;
-  --text-muted: #6b6f76;
-  --border: #e7e5e4;
-  --accent: #4c6ef5;
-  --accent-weak: #edf2ff;
-  --success: #2f9e44;
-  --warning: #f59f00;
+  --surface-muted: #f3f3f3;
+  --text: #111111;
+  --text-muted: #5c5c5c;
+  --border: #d9d9d9;
+  --accent: #111111;
+  --accent-weak: #ededed;
+  --warning: #111111;
 }
 
 * {
@@ -151,7 +150,7 @@ body {
 .tab.active {
   background: var(--accent-weak);
   color: var(--accent);
-  border-color: #dbe4ff;
+  border-color: var(--border);
 }
 
 .assistant-content {
@@ -173,7 +172,7 @@ body {
 .spinner {
   width: 40px;
   height: 40px;
-  border: 3px solid #f1f0ee;
+  border: 3px solid #e6e6e6;
   border-top: 3px solid var(--accent);
   border-radius: 50%;
   animation: spin 1s linear infinite;
@@ -214,7 +213,7 @@ body {
 .selection-type {
   font-size: 0.85rem;
   padding: 0.25rem 0.75rem;
-  background: #f1f3f5;
+  background: #ededed;
   color: var(--text);
   border-radius: 12px;
   font-weight: 600;
@@ -242,7 +241,7 @@ body {
 }
 
 .btn-primary:hover {
-  background: #3b5bdb;
+  background: #000000;
 }
 
 .btn-secondary {
@@ -283,6 +282,24 @@ body {
   border: 1px solid var(--border);
 }
 
+.rewrite {
+  margin: 1rem 0;
+  padding: 0.85rem 1rem;
+  background: var(--surface-muted);
+  border-radius: 6px;
+  border: 1px solid var(--border);
+}
+
+.rewrite h3 {
+  font-size: 0.95rem;
+  margin-bottom: 0.5rem;
+  color: var(--text);
+}
+
+.rewrite p {
+  color: var(--text);
+}
+
 .examples h3,
 .outline h3 {
   font-size: 1rem;
@@ -315,14 +332,14 @@ body {
 .follow-up {
   margin-top: 1.5rem;
   padding: 0.9rem 1rem;
-  background: #fff7e6;
-  border-left: 3px solid var(--warning);
+  background: var(--surface-muted);
+  border-left: 3px solid var(--accent);
   border-radius: 6px;
   font-size: 0.95rem;
 }
 
 .follow-up strong {
-  color: #d9480f;
+  color: var(--text);
 }
 
 .reasoning-notes {
@@ -333,7 +350,7 @@ body {
 
 .reasoning-notes summary {
   cursor: pointer;
-  color: var(--accent);
+  color: var(--text);
   font-weight: 500;
 }
 
@@ -357,8 +374,8 @@ body {
 }
 
 kbd {
-  background: #f1f3f5;
-  border: 1px solid #e9ecef;
+  background: #ededed;
+  border: 1px solid var(--border);
   border-radius: 3px;
   padding: 0.2rem 0.5rem;
   font-family: monospace;

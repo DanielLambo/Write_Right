@@ -40,6 +40,10 @@ export interface AssistResponse {
   outline?: string[];
   followUpQuestion: string;
   /**
+   * Optional simplified rewrite for SNIPPET explains.
+   */
+  simplerRewrite?: string;
+  /**
    * Brief explanation of why the agent classified the selection as it did
    * and why it chose this style of response.
    */
@@ -304,6 +308,16 @@ function buildSnippetSummary(sentence: string, selection: string): string {
   return pickVariant(templates, sentence + selection);
 }
 
+function buildSimplerRewrite(sentence: string): string {
+  const cleaned = sentence.replace(/\s+/g, ' ').trim();
+  const templates = [
+    `Simpler rewrite: ${cleaned}`,
+    `Plain rewrite: ${cleaned}`,
+    `In simpler terms: ${cleaned}`,
+  ];
+  return pickVariant(templates, cleaned);
+}
+
 function buildTypeSpecificGuidance(sentenceType: SentenceType, seed: string): string {
   const causeTips = [
     'Make sure the cause and effect are both clear—don’t leave the reader guessing which is which.',
@@ -559,12 +573,15 @@ function generateExplainResponse(
     const sentenceType = detectSentenceType(bestSentence ?? selection);
     const typeGuidance = buildTypeSpecificGuidance(sentenceType, selection + context);
     const roleGuidance = buildSnippetRoleGuidance(role, writingTone, selection + context);
+    const rewriteBase = bestSentence ?? selection;
+    const simplerRewrite = buildSimplerRewrite(rewriteBase);
 
     return {
       mode: 'explain',
       selectionType: 'SNIPPET',
       summary: `${simplified} ${typeGuidance} ${roleGuidance}`,
       bullets: buildSnippetBullets(role, selection + context),
+      simplerRewrite,
       followUpQuestion: 'If you had to rewrite this sentence in 10–12 words, what would you keep?',
       reasoningNotes: `Classified as SNIPPET because the selection is longer or sentence-like. Detected ${writingTone} tone, ${role} role, and ${sentenceType} sentence type, so the response paraphrases the closest full sentence and gives targeted advice for that structure. ${nearbyRef}`
     };

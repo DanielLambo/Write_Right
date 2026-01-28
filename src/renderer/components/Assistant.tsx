@@ -84,6 +84,13 @@ const Assistant: React.FC<AssistantProps> = ({
             <div className="response-body">
               <p className="summary">{response.summary}</p>
 
+              {response.simplerRewrite && (
+                <div className="rewrite">
+                  <h3>Simpler rewrite:</h3>
+                  <p>{response.simplerRewrite}</p>
+                </div>
+              )}
+
               {response.bullets && response.bullets.length > 0 && (
                 <ul className="bullets">
                   {response.bullets.map((bullet, idx) => (
@@ -130,12 +137,15 @@ const Assistant: React.FC<AssistantProps> = ({
 
         {!loading && !error && !response && (
           <div className="empty-state">
-            <p>Select text in the editor and click a mode above, or use keyboard shortcuts:</p>
+            <p>Select text in the editor and choose a mode:</p>
             <ul>
               <li><kbd>Cmd/Ctrl + E</kbd> for Explain</li>
               <li><kbd>Cmd/Ctrl + Shift + E</kbd> for Examples</li>
               <li><kbd>Cmd/Ctrl + O</kbd> for Outline</li>
             </ul>
+            <p style={{ marginTop: '1rem' }}>
+              Demo: type a paragraph about “democracy,” highlight a sentence, then click Explain.
+            </p>
           </div>
         )}
       </div>

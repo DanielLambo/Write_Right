@@ -136,6 +136,7 @@ function App() {
     
     const textToCopy = [
       assistantResponse.summary,
+      assistantResponse.simplerRewrite || '',
       ...(assistantResponse.bullets || []),
       ...(assistantResponse.examples || []),
       ...(assistantResponse.outline || []),
@@ -152,6 +153,11 @@ function App() {
     lines.push(`Assistant (${assistantResponse.mode.toUpperCase()})`);
     lines.push('');
     lines.push(assistantResponse.summary);
+
+    if (assistantResponse.simplerRewrite) {
+      lines.push('');
+      lines.push(assistantResponse.simplerRewrite);
+    }
 
     if (assistantResponse.bullets?.length) {
       lines.push('');

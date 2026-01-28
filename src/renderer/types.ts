@@ -6,5 +6,6 @@ export interface AssistResponse {
   examples?: string[];
   outline?: string[];
   followUpQuestion: string;
+  simplerRewrite?: string;
   reasoningNotes?: string;
 }
