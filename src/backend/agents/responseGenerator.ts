@@ -11,6 +11,7 @@ export type AssistMode = 'explain' | 'examples' | 'outline';
 export type SelectionType = 'TERM' | 'SNIPPET';
 type WritingTone = 'argumentative' | 'explanatory' | 'mixed';
 type ContentRole = 'claim' | 'definition' | 'example' | 'other';
+type SentenceType = 'cause' | 'contrast' | 'definition' | 'example' | 'comparison' | 'list' | 'general';
 
 type GlossaryEntry = {
   definition: string;
@@ -143,6 +144,302 @@ function extractNearbySentences(context: string): { before?: string; after?: str
   };
 }
 
+function pickBestSentence(selection: string, context: string): string | undefined {
+  const sentences = context
+    .split(/(?<=[.!?])\s+/)
+    .map(s => s.trim())
+    .filter(Boolean);
+  if (sentences.length === 0) return undefined;
+  const selLower = selection.toLowerCase().trim();
+  if (!selLower) return sentences[0];
+  let best = sentences[0];
+  let bestScore = -1;
+  for (const s of sentences) {
+    const lower = s.toLowerCase();
+    const contains = lower.includes(selLower) ? 2 : 0;
+    const overlap = selLower
+      .split(/\s+/)
+      .filter(Boolean)
+      .reduce((acc, w) => acc + (lower.includes(w) ? 1 : 0), 0);
+    const score = contains + overlap - Math.abs(s.length - selection.length) / 200;
+    if (score > bestScore) {
+      bestScore = score;
+      best = s;
+    }
+  }
+  return best;
+}
+
+function shortenSentence(sentence: string, maxChars = 160): string {
+  if (sentence.length <= maxChars) return sentence;
+  return `${sentence.slice(0, maxChars).trim()}...`;
+}
+
+function hashString(input: string): number {
+  let hash = 0;
+  for (let i = 0; i < input.length; i += 1) {
+    hash = (hash << 5) - hash + input.charCodeAt(i);
+    hash |= 0;
+  }
+  return Math.abs(hash);
+}
+
+function pickVariant<T>(items: T[], seed: string): T {
+  if (items.length === 0) {
+    throw new Error('pickVariant called with empty array');
+  }
+  const index = hashString(seed) % items.length;
+  return items[index];
+}
+
+function buildDefinition(selection: string): string {
+  const termKey = selection.trim().toLowerCase();
+  const known = KNOWN_TERMS[termKey];
+  if (known) return known.definition;
+  return `"${selection}" is a key term that needs a clear definition in your essay.`;
+}
+
+function buildWhyItMatters(selection: string, contextSentence?: string): string {
+  if (contextSentence) {
+    return `It matters here because it connects to this nearby sentence: "${shortenSentence(contextSentence)}".`;
+  }
+  return `It matters here because it anchors a key idea the reader must understand before your argument makes sense.`;
+}
+
+function buildAnalogy(selection: string): string {
+  const termKey = selection.trim().toLowerCase();
+  const known = KNOWN_TERMS[termKey];
+  if (known) return known.analogy;
+  return `Think of it like a label that lets you refer back to the same idea without re-explaining it every time.`;
+}
+
+function extractKeyPhrases(sentence: string, max = 3): string[] {
+  const stopwords = new Set([
+    'the', 'a', 'an', 'and', 'or', 'but', 'if', 'then', 'so',
+    'in', 'on', 'at', 'for', 'to', 'of', 'with', 'by', 'as',
+    'is', 'are', 'was', 'were', 'be', 'being', 'been',
+    'this', 'that', 'these', 'those', 'it', 'its', 'their', 'they',
+    'i', 'you', 'he', 'she', 'we', 'us', 'them', 'your', 'our',
+  ]);
+  const words = sentence
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .split(/\s+/)
+    .filter(Boolean)
+    .filter(w => !stopwords.has(w) && w.length > 3);
+  const counts = new Map<string, number>();
+  words.forEach(w => counts.set(w, (counts.get(w) ?? 0) + 1));
+  return Array.from(counts.entries())
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, max)
+    .map(([w]) => w);
+}
+
+function detectSentenceType(sentence: string): SentenceType {
+  const s = sentence.toLowerCase();
+  if (s.includes('because ') || s.includes('since ') || s.includes('as a result') || s.includes('therefore')) {
+    return 'cause';
+  }
+  if (s.includes('however') || s.includes('but ') || s.includes('although') || s.includes('on the other hand')) {
+    return 'contrast';
+  }
+  if (s.includes(' is ') || s.includes(' are ') || s.includes(' means ') || s.includes(' refers to ')) {
+    return 'definition';
+  }
+  if (s.includes('for example') || s.includes('for instance') || s.includes('such as')) {
+    return 'example';
+  }
+  if (s.includes('more than') || s.includes('less than') || s.includes('compared to') || s.includes('versus')) {
+    return 'comparison';
+  }
+  if (s.includes(':') || s.includes('including') || s.includes('such as')) {
+    return 'list';
+  }
+  return 'general';
+}
+
+function splitOnFirst(sentence: string, marker: string): [string, string] {
+  const idx = sentence.toLowerCase().indexOf(marker);
+  if (idx === -1) return [sentence, ''];
+  return [sentence.slice(0, idx).trim(), sentence.slice(idx + marker.length).trim()];
+}
+
+function buildSnippetSummary(sentence: string, selection: string): string {
+  const keyPhrases = extractKeyPhrases(sentence, 3);
+  const anchor = keyPhrases.length > 0 ? keyPhrases.join(', ') : selection.trim();
+  const type = detectSentenceType(sentence);
+  const lower = sentence.toLowerCase();
+
+  if (type === 'cause') {
+    const [before, after] = lower.includes('because ')
+      ? splitOnFirst(sentence, 'because ')
+      : lower.includes('since ')
+      ? splitOnFirst(sentence, 'since ')
+      : [sentence, ''];
+    const cause = after || anchor;
+    return `This sentence links a cause to an effect: ${shortenSentence(before)} because ${shortenSentence(cause)}.`;
+  }
+  if (type === 'contrast') {
+    return `This sentence sets up a contrast or tension, signaling a shift in your argument around ${anchor}.`;
+  }
+  if (type === 'definition') {
+    return `This sentence is defining or clarifying ${anchor}.`;
+  }
+  if (type === 'example') {
+    return `This sentence introduces an example to ground ${anchor}.`;
+  }
+  if (type === 'comparison') {
+    return `This sentence compares two ideas, helping the reader judge ${anchor}.`;
+  }
+  if (type === 'list') {
+    return `This sentence lists components or examples tied to ${anchor}.`;
+  }
+
+  const templates = [
+    `In simpler words, this sentence is pointing to ${anchor}.`,
+    `Plainly put, the idea here centers on ${anchor}.`,
+    `This line is basically explaining ${anchor} in your argument.`,
+    `The main takeaway is about ${anchor}, which drives the paragraph forward.`,
+  ];
+  return pickVariant(templates, sentence + selection);
+}
+
+function buildTypeSpecificGuidance(sentenceType: SentenceType, seed: string): string {
+  const causeTips = [
+    'Make sure the cause and effect are both clear—don’t leave the reader guessing which is which.',
+    'Add a concrete example or evidence that supports the causal link.',
+    'If the cause is complex, break it into two shorter sentences.',
+  ];
+  const contrastTips = [
+    'Make the two sides of the contrast explicit so the reader sees the difference immediately.',
+    'Clarify which side you agree with or which one is stronger.',
+    'Use a transition word to emphasize the pivot in your argument.',
+  ];
+  const definitionTips = [
+    'Keep the definition short and precise; save commentary for the next sentence.',
+    'Make sure this definition appears before the term is used elsewhere.',
+    'Avoid stacking multiple definitions in the same line.',
+  ];
+  const exampleTips = [
+    'Name a specific example (person, event, study, or data point).',
+    'Explain how the example supports your claim in the next sentence.',
+    'If the example is generic, make it more concrete.',
+  ];
+  const comparisonTips = [
+    'State the comparison axis (what exactly is being compared).',
+    'Make the contrast measurable or observable, not just implied.',
+    'Follow up with a reason why the comparison matters.',
+  ];
+  const listTips = [
+    'Use a short lead-in so the reader knows why the list matters.',
+    'Keep items parallel in structure for clarity.',
+    'Limit the list to the most relevant points.',
+  ];
+  const generalTips = [
+    'Make sure this sentence clearly supports the paragraph’s main point.',
+    'Trim extra phrases so the key idea lands quickly.',
+    'Check that the sentence before sets it up and the sentence after builds on it.',
+  ];
+
+  const pick = (arr: string[]) => pickVariant(arr, seed);
+  switch (sentenceType) {
+    case 'cause':
+      return pick(causeTips);
+    case 'contrast':
+      return pick(contrastTips);
+    case 'definition':
+      return pick(definitionTips);
+    case 'example':
+      return pick(exampleTips);
+    case 'comparison':
+      return pick(comparisonTips);
+    case 'list':
+      return pick(listTips);
+    default:
+      return pick(generalTips);
+  }
+}
+
+function buildSnippetRoleGuidance(role: ContentRole, writingTone: WritingTone, seed: string): string {
+  const claimTips = [
+    'Because this reads like a claim, it should be followed by evidence or an example.',
+    'This sounds like a position—add a concrete detail or citation to make it believable.',
+    'Claims work best with proof; consider a fact, statistic, or brief example right after.',
+  ];
+  const defTips = [
+    'Because this reads like a definition, keep it concise and make sure it appears before the term is used later.',
+    'If this is defining something, tighten it to one clean sentence and move on.',
+    'Definitions should be short and clear—avoid adding extra claims here.',
+  ];
+  const exTips = [
+    'Because this reads like an example, make sure it directly supports the point you just made.',
+    'Examples should be specific—name a real case, event, or observation.',
+    'If this is an example, connect it back to the claim in the next sentence.',
+  ];
+  const otherTips = [
+    'Make sure this sentence clearly supports the paragraph’s main point.',
+    'Check that the sentence before sets it up and the sentence after follows through.',
+    'If this is a transition, make the connection explicit.',
+  ];
+
+  const tonePrefix =
+    writingTone === 'argumentative'
+      ? 'This appears in an argumentative section, so clarity and evidence matter most. '
+      : writingTone === 'explanatory'
+      ? 'This sits in an explanatory section, so clarity and definitions matter most. '
+      : '';
+
+  const tip =
+    role === 'claim'
+      ? pickVariant(claimTips, seed)
+      : role === 'definition'
+      ? pickVariant(defTips, seed)
+      : role === 'example'
+      ? pickVariant(exTips, seed)
+      : pickVariant(otherTips, seed);
+
+  return `${tonePrefix}${tip}`;
+}
+
+function buildSnippetBullets(role: ContentRole, seed: string): string[] {
+  const common = [
+    'State the core point in one line. If you can’t, the sentence is doing too much.',
+    'Trim extra phrases so the main idea lands quickly.',
+  ];
+  const claim = [
+    'Add a concrete detail, stat, or example if this is your main claim.',
+    'Follow this with evidence so it doesn’t feel like an unsupported opinion.',
+  ];
+  const definition = [
+    'Keep the definition tight—one sentence is enough.',
+    'Move additional background info to the next sentence.',
+  ];
+  const example = [
+    'Make the example specific (who, what, when).',
+    'Connect the example back to your claim in the next line.',
+  ];
+  const other = [
+    'Check that the sentence before sets it up and the sentence after builds on it.',
+  ];
+
+  const roleBullets =
+    role === 'claim'
+      ? claim
+      : role === 'definition'
+      ? definition
+      : role === 'example'
+      ? example
+      : other;
+
+  const result = [
+    pickVariant(common, seed),
+    pickVariant(roleBullets, seed + 'role'),
+    pickVariant([...common, ...roleBullets], seed + 'mix'),
+  ];
+
+  return Array.from(new Set(result));
+}
+
 /**
  * Naive keyword extraction used as "lightweight semantic grounding".
  * Frequency + position weighting, no ML libraries.
@@ -232,16 +529,15 @@ function generateExplainResponse(
       ? 'Here it reads like a claim or position you are taking.'
       : 'Here it works as supporting detail around your main ideas.';
 
-  const nearbyRef = nearby.before
-    ? `It is surrounded by sentences like: "${nearby.before}${nearby.after ? ' ... ' + nearby.after : ''}", which shape how a reader interprets it.`
-    : 'Looking at the nearby sentences helps clarify how a reader will understand it.';
+  const bestSentence = pickBestSentence(selection, context);
+  const nearbyRef = bestSentence
+    ? `Closest sentence: "${shortenSentence(bestSentence)}".`
+    : 'No nearby sentence was found; try expanding the selection.';
 
   if (type === 'TERM') {
-    const termKey = selection.trim().toLowerCase();
-    const known = KNOWN_TERMS[termKey];
-    const definition = known?.definition ?? `"${selection}" is a key term in this passage.`;
-    const why = known?.whyItMatters ?? 'It matters here because it anchors what your reader should understand before the rest of the point makes sense.';
-    const analogy = known?.analogy ?? 'A quick analogy: treat it like a “label” for an idea—once defined, everything else can build on it.';
+    const definition = buildDefinition(selection);
+    const why = buildWhyItMatters(selection, bestSentence);
+    const analogy = buildAnalogy(selection);
 
     return {
       mode: 'explain',
@@ -250,23 +546,27 @@ function generateExplainResponse(
       bullets: [
         'Add a brief definition the first time you use it (one sentence is enough).',
         'Connect the term directly to your overall claim or research question.',
-        'If this is a biology/anatomy term, consider adding one concrete detail (location, function, or why it’s relevant).'
+        'Include one concrete detail (location, function, impact, or why it matters).'
       ],
       followUpQuestion: `In one sentence, how would you define "${selection}" for a friend outside this class?`,
-      reasoningNotes: `Classified as TERM because the selection is short and lacks sentence punctuation. Detected ${writingTone} tone and ${role} role, so the response focuses on clarifying the concept, tying it to your argument, and encouraging you to use nearby sentences for definition. ${nearbyRef}`
+      reasoningNotes: `Classified as TERM because the selection is short and lacks sentence punctuation. Detected ${writingTone} tone and ${role} role, so the response focuses on defining the term, tying it to nearby context, and keeping it aligned with the essay’s argument. ${nearbyRef}`
     };
   } else {
+    const simplified = bestSentence
+      ? buildSnippetSummary(bestSentence, selection)
+      : buildSnippetSummary(selection, selection);
+
+    const sentenceType = detectSentenceType(bestSentence ?? selection);
+    const typeGuidance = buildTypeSpecificGuidance(sentenceType, selection + context);
+    const roleGuidance = buildSnippetRoleGuidance(role, writingTone, selection + context);
+
     return {
       mode: 'explain',
       selectionType: 'SNIPPET',
-      summary: `In simpler terms, this part is saying that ${selection.trim()} It guides the reader toward how you want them to think about your topic.`,
-      bullets: [
-        'Check that the main point of this sentence can be stated in one clear, direct line.',
-        'Make sure the sentence before it sets up the idea, and the sentence after it follows through.',
-        'If this is a claim, consider adding a concrete example or piece of evidence nearby.'
-      ],
+      summary: `${simplified} ${typeGuidance} ${roleGuidance}`,
+      bullets: buildSnippetBullets(role, selection + context),
       followUpQuestion: 'If you had to rewrite this sentence in 10–12 words, what would you keep?',
-      reasoningNotes: `Classified as SNIPPET because the selection is longer or sentence-like. Detected ${writingTone} tone and ${role} role, so the response paraphrases the idea, highlights how it functions in the argument, and suggests tightening or supporting it using the surrounding context. ${nearbyRef}`
+      reasoningNotes: `Classified as SNIPPET because the selection is longer or sentence-like. Detected ${writingTone} tone, ${role} role, and ${sentenceType} sentence type, so the response paraphrases the closest full sentence and gives targeted advice for that structure. ${nearbyRef}`
     };
   }
 }
