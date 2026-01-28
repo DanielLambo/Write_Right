@@ -1,21 +1,20 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import Editor from './components/Editor';
-import Assistant from './components/Assistant';
-import { AssistResponse } from './types';
+import InsightsPanel from './components/InsightsPanel';
+import { AnalysisResult, CoachTab, WritingIssue } from './types';
 
 const API_BASE = 'http://localhost:3051';
 
 function App() {
   const [essayText, setEssayText] = useState('');
-  const [selectedText, setSelectedText] = useState('');
-  const [selectionStart, setSelectionStart] = useState(0);
-  const [selectionEnd, setSelectionEnd] = useState(0);
-  const [activeMode, setActiveMode] = useState<'explain' | 'examples' | 'outline'>('explain');
-  const [assistantResponse, setAssistantResponse] = useState<AssistResponse | null>(null);
+  const [activeTab, setActiveTab] = useState<CoachTab>('grammar');
+  const [analysis, setAnalysis] = useState<AnalysisResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [lastAnalyzed, setLastAnalyzed] = useState<Date | null>(null);
   const [sessionId] = useState(() => `session_${Date.now()}`);
   const editorRef = useRef<HTMLTextAreaElement>(null);
+  const analyzeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Autosave effect
   useEffect(() => {
@@ -27,10 +26,36 @@ function App() {
           body: JSON.stringify({ sessionId, content: essayText }),
         }).catch(console.error);
       }
-    }, 2000); // Autosave after 2 seconds of inactivity
+    }, 2000);
 
     return () => clearTimeout(timer);
   }, [essayText, sessionId]);
+
+  // Debounced background analysis
+  useEffect(() => {
+    if (analyzeTimeoutRef.current) {
+      clearTimeout(analyzeTimeoutRef.current);
+    }
+
+    if (essayText.trim().length > 50) {
+      analyzeTimeoutRef.current = setTimeout(() => {
+        handleAnalyze(true);
+      }, 1500);
+    }
+
+    return () => {
+      if (analyzeTimeoutRef.current) {
+        clearTimeout(analyzeTimeoutRef.current);
+      }
+    };
+  }, [essayText]);
+
+  // Update "last analyzed" display
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    const interval = setInterval(() => setTick(t => t + 1), 10000);
+    return () => clearInterval(interval);
+  }, []);
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -38,189 +63,159 @@ function App() {
       const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
       const cmdOrCtrl = isMac ? e.metaKey : e.ctrlKey;
 
-      if (cmdOrCtrl && e.key === 'e' && !e.shiftKey) {
+      if (cmdOrCtrl && e.key === 'Enter') {
         e.preventDefault();
-        handleAssist('explain');
-      } else if (cmdOrCtrl && e.shiftKey && e.key === 'E') {
-        e.preventDefault();
-        handleAssist('examples');
-      } else if (cmdOrCtrl && e.key === 'o') {
-        e.preventDefault();
-        handleAssist('outline');
+        handleAnalyze();
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [selectedText, essayText]);
+  }, [essayText]);
 
-  const handleSelectionChange = (text: string, start: number, end: number) => {
-    setSelectedText(text);
-    setSelectionStart(start);
-    setSelectionEnd(end);
-  };
-
-  const handleAssist = async (mode: 'explain' | 'examples' | 'outline') => {
-    if (!selectedText.trim() && mode !== 'outline') {
-      setError('Please select some text first');
+  const handleAnalyze = useCallback(async (silent = false) => {
+    if (!essayText.trim()) {
+      if (!silent) setError('Begin writing to analyze your draft');
       return;
     }
 
-    setActiveMode(mode);
-    setLoading(true);
-    setError(null);
-
-    const startTime = performance.now();
+    if (!silent) {
+      setLoading(true);
+      setError(null);
+    }
 
     try {
-      const response = await fetch(`${API_BASE}/assist`, {
+      const response = await fetch(`${API_BASE}/analyze`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          mode,
-          selection: selectedText || essayText.substring(0, 100),
-          essayText,
-          selectionStart,
-          selectionEnd,
-        }),
+        body: JSON.stringify({ essayText }),
       });
 
       if (!response.ok) {
         throw new Error(`Server error: ${response.statusText}`);
       }
 
-      const data: AssistResponse = await response.json();
-      setAssistantResponse(data);
+      const data: AnalysisResult = await response.json();
+      setAnalysis(data);
+      setLastAnalyzed(new Date());
 
-      const latencyMs = Math.round(performance.now() - startTime);
-      const wordCount = essayText.split(/\s+/).filter(w => w.length > 0).length;
-      const selectionType = data.selectionType;
-      const responseTextParts = [
-        data.summary,
-        ...(data.bullets || []),
-        ...(data.examples || []),
-        ...(data.outline || []),
-        data.followUpQuestion,
-        data.reasoningNotes || '',
-      ];
-      const responseLength = responseTextParts.join('\n').length;
-      const length = essayText.length;
-      const docLengthBucket =
-        length < 500 ? '<500' : length < 1500 ? '500-1500' : '>1500';
-      
-      fetch(`${API_BASE}/log`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          sessionId,
-          action: mode,
-          selection: selectedText,
-          selectionType,
-          docLength: essayText.length,
-          wordCount,
-          latencyMs,
-          responseLength,
-          mode,
-          docLengthBucket,
-        }),
-      }).catch(console.error);
+      if (!silent) {
+        fetch(`${API_BASE}/log`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            sessionId,
+            action: 'analyze',
+            selection: '',
+            selectionType: 'FULL',
+            docLength: essayText.length,
+            wordCount: data.wordCount,
+            latencyMs: 0,
+            responseLength: data.issues.length,
+            mode: 'analyze',
+            docLengthBucket: essayText.length < 500 ? '<500' : essayText.length < 1500 ? '500-1500' : '>1500',
+          }),
+        }).catch(console.error);
+      }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to get assistance');
+      if (!silent) {
+        setError(err instanceof Error ? err.message : 'Analysis unavailable');
+      }
     } finally {
-      setLoading(false);
+      if (!silent) {
+        setLoading(false);
+      }
+    }
+  }, [essayText, sessionId]);
+
+  const handleIssueClick = (issue: WritingIssue) => {
+    if (editorRef.current) {
+      editorRef.current.focus();
+      editorRef.current.setSelectionRange(issue.startIndex, issue.endIndex);
+      const lineHeight = 24;
+      const charsPerLine = 80;
+      const approxLine = Math.floor(issue.startIndex / charsPerLine);
+      editorRef.current.scrollTop = approxLine * lineHeight;
     }
   };
 
-  const handleCopyResponse = () => {
-    if (!assistantResponse) return;
-    
-    const textToCopy = [
-      assistantResponse.summary,
-      assistantResponse.simplerRewrite || '',
-      ...(assistantResponse.bullets || []),
-      ...(assistantResponse.examples || []),
-      ...(assistantResponse.outline || []),
-    ].join('\n');
-
-    navigator.clipboard.writeText(textToCopy);
+  const getTimeSinceAnalysis = () => {
+    if (!lastAnalyzed) return null;
+    const seconds = Math.floor((Date.now() - lastAnalyzed.getTime()) / 1000);
+    if (seconds < 10) return 'just now';
+    if (seconds < 60) return `${seconds}s ago`;
+    const minutes = Math.floor(seconds / 60);
+    return `${minutes}m ago`;
   };
 
-  const handleInsertResponse = () => {
-    if (!assistantResponse || !editorRef.current) return;
-
-    const lines: string[] = [];
-    lines.push('---');
-    lines.push(`Assistant (${assistantResponse.mode.toUpperCase()})`);
-    lines.push('');
-    lines.push(assistantResponse.summary);
-
-    if (assistantResponse.simplerRewrite) {
-      lines.push('');
-      lines.push(assistantResponse.simplerRewrite);
-    }
-
-    if (assistantResponse.bullets?.length) {
-      lines.push('');
-      assistantResponse.bullets.forEach(b => lines.push(`- ${b}`));
-    }
-
-    if (assistantResponse.examples?.length) {
-      lines.push('');
-      lines.push('Examples:');
-      assistantResponse.examples.forEach(e => lines.push(`- ${e}`));
-    }
-
-    if (assistantResponse.outline?.length) {
-      lines.push('');
-      lines.push('Outline:');
-      assistantResponse.outline.forEach(o => lines.push(`- ${o}`));
-    }
-
-    lines.push('');
-    lines.push(`Follow-up: ${assistantResponse.followUpQuestion}`);
-    lines.push('---');
-
-    const textToInsert = `\n\n${lines.join('\n')}\n`;
-    const textarea = editorRef.current;
-    const start = textarea.selectionStart;
-    const end = textarea.selectionEnd;
-    const newText = essayText.substring(0, start) + textToInsert + essayText.substring(end);
-    
-    setEssayText(newText);
-    
-    // Restore cursor position
-    setTimeout(() => {
-      textarea.focus();
-      textarea.setSelectionRange(start + textToInsert.length, start + textToInsert.length);
-    }, 0);
-  };
+  const wordCount = essayText.split(/\s+/).filter(w => w.length > 0).length;
+  const readingTime = Math.max(1, Math.ceil(wordCount / 200));
 
   return (
     <div className="app">
-      <div className="app-header">
-        <h1>Learning-While-Writing Assistant</h1>
-        <div className="shortcuts-hint">
-          Cmd/Ctrl+E: Explain | Cmd/Ctrl+Shift+E: Examples | Cmd/Ctrl+O: Outline
+      <header className="app-header">
+        <div className="header-left">
+          <h1>Write-Right</h1>
         </div>
-      </div>
-      <div className="app-content">
-        <Editor
-          ref={editorRef}
-          value={essayText}
-          onChange={setEssayText}
-          onSelectionChange={handleSelectionChange}
-        />
-        <Assistant
-          activeMode={activeMode}
-          response={assistantResponse}
-          loading={loading}
-          error={error}
-          onModeChange={setActiveMode}
-          onAssist={handleAssist}
-          onCopy={handleCopyResponse}
-          onInsert={handleInsertResponse}
-        />
-      </div>
+        <div className="header-center">
+          <div className="header-stats">
+            <span className="stat">
+              <span className="stat-value">{wordCount}</span>
+              <span className="stat-label">words</span>
+            </span>
+            <span className="stat-divider" />
+            <span className="stat">
+              <span className="stat-value">{readingTime}</span>
+              <span className="stat-label">min</span>
+            </span>
+            {analysis && (
+              <>
+                <span className="stat-divider" />
+                <span className="stat draft-quality" title="Draft Quality Score">
+                  <span className="stat-value">{analysis.qualityScore}</span>
+                  <span className="stat-label">quality</span>
+                </span>
+              </>
+            )}
+          </div>
+        </div>
+        <div className="header-right">
+          {lastAnalyzed && (
+            <span className="last-analyzed">Analyzed {getTimeSinceAnalysis()}</span>
+          )}
+          <span className="shortcut-hint">
+            <kbd>⌘</kbd><kbd>↵</kbd>
+          </span>
+        </div>
+      </header>
+
+      <main className="app-content">
+        <section className="editor-section">
+          <Editor
+            ref={editorRef}
+            value={essayText}
+            onChange={setEssayText}
+            issues={analysis?.issues || []}
+          />
+        </section>
+        <aside className="insights-section">
+          <InsightsPanel
+            activeTab={activeTab}
+            analysis={analysis}
+            loading={loading}
+            error={error}
+            onTabChange={setActiveTab}
+            onAnalyze={() => handleAnalyze()}
+            onIssueClick={handleIssueClick}
+          />
+        </aside>
+      </main>
+
+      <footer className="app-footer">
+        <span className="integrity-badge" title="Write-Right helps you revise — it never writes for you">
+          Designed to improve your writing — not replace it.
+        </span>
+      </footer>
     </div>
   );
 }

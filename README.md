@@ -1,90 +1,170 @@
-## Problem
+# Write-Right
 
-Students writing essays constantly bounce between their draft, search engines, PDFs, and notes just to understand concepts or find examples. This context switching breaks focus, hurts comprehension, and makes writing slower and more frustrating.
+A serious essay-writing environment that surfaces revision insights without writing for you.
 
-The Learning‑While‑Writing Assistant is a desktop app that embeds a lightweight “agent” directly into the writing experience so students can learn while they type instead of after they submit.
+---
 
-## Why existing tools fall short
+## Philosophy
 
-- **Generic writing assistants** focus on grammar and style, not understanding.  
-- **Search engines and PDFs** force students out of the writing flow.  
-- **Course platforms** provide resources, but not inline, context‑aware support tied to the exact sentence being written.
+Write-Right is built on a simple principle: **great writing comes from thoughtful revision, not automation.**
 
-This project keeps the student in one window while still giving explanations, examples, and structure help grounded in their own essay.
+This tool analyzes your draft and surfaces signals about clarity, structure, flow, and argument strength. It helps you see your writing more clearly — but every word remains yours.
 
-## Architecture (high level)
+> *Designed to improve your writing — not replace it.*
 
-```text
-┌────────────────────────┐      ┌────────────────────────────┐
-│  Electron Desktop App  │      │    Local Node.js Server    │
-│  (React + TypeScript)  │◀────▶│  (Express + TS, offline)   │
-└──────────┬─────────────┘      └───────────┬────────────────┘
-           │                                │
-           │ /assist, /log, /autosave       │
-           ▼                                ▼
-   Essay editor + assistant        Deterministic agent pipeline
-   - textarea + word count         - context extraction
-   - selection tracking            - intent / role detection
-   - Explain / Examples / Outline  - response assembly + logging
-```
+---
 
-## Agent design
+## What It Does
 
-The backend implements a deterministic, explainable agent pipeline:
+**Draft Analysis** scans your essay and surfaces:
 
-- **Context extraction**: For each request, the agent pulls a window around the selection based on `selectionStart`/`selectionEnd` and the full essay text.  
-- **Intent & role detection** (heuristics only):
-  - Classifies the selection as **TERM** (≤5 words, no period) or **SNIPPET** (sentence‑like).
-  - Detects **writing tone** (argumentative vs explanatory vs mixed) from markers like “therefore”, “because”, “for example”.
-  - Detects **content role** (claim, definition, example, other) using simple phrase and pattern checks.
-- **Lightweight semantic grounding**:
-  - Extracts “key terms” from the essay via frequency + position weighting (no ML libs, just string ops).
-  - Uses these terms to bias outlines and examples so responses stay tied to the student’s actual topic.
-- **Response assembly**:
-  - **Explain**: Paraphrases the selection in simpler language, explains how it functions in the paragraph, and suggests a concrete editing move.
-  - **Examples**: Generates one academic‑style and one real‑world‑style example anchored on detected key terms.
-  - **Outline**: Proposes a 4–6 item structure using paragraph boundaries and key terms (intro, body paragraphs, conclusion).
-- **Explainability metadata**:
-  - Every `/assist` response includes `reasoningNotes` describing why the agent classified the selection as TERM vs SNIPPET and why it chose that response structure.
-  - The UI exposes this behind a small “Why this answer?” toggle so the behavior is transparent.
+- **Mechanics** — Spelling, punctuation, capitalization
+- **Clarity** — Sentence length, passive constructions, filler words, repetition
+- **Flow** — Paragraph structure, transitions, intro/conclusion strength
+- **Argument** — Unsupported claims, questionable absolutes
 
-All of this logic is deterministic and offline; swapping in an LLM later only requires routing through `generateWithProvider`.
+Each signal includes:
+- A severity level (critical, needs review, optional refinement)
+- An explanation of the pattern detected
+- Revision guidance on how to address it
+- Optional micro-suggestions (short phrases only)
 
-## Logging & analysis
+**What it won't do:**
+- Write paragraphs or sentences for you
+- Rewrite your text
+- Use external AI/LLM services
+- Replace your judgment as a writer
 
-Every interaction is logged to `data/interaction_logs.jsonl` with:
+---
 
-- `sessionId`, `mode`, `selection`, `selectionType`  
-- `docLength`, `wordCount`, `docLengthBucket` (`<500`, `500-1500`, `>1500`)  
-- `latencyMs` (end‑to‑end assist time)  
-- `responseLength` (characters)
-
-A small script `scripts/printSessionSummary.ts` reads the log file and prints per‑session summaries (interaction counts, mode usage, average latency, etc.) to support offline analysis and iteration.
-
-## Tradeoffs & limitations
-
-- The agent uses simple heuristics, not a full ML model, so classifications are approximate by design.  
-- Semantic grounding is based on word statistics, not embeddings, to keep the stack light and offline.  
-- The editor is a textarea (no rich text) to keep focus on the learning workflow rather than formatting.
-
-These choices keep the project shippable in hours while still making the “agent” feel intentional, inspectable, and upgradeable.
-
-## What we’d add with more time
-
-- Plug in an LLM provider behind `generateWithProvider` for richer explanations and examples.  
-- Smarter document‑level reasoning (thesis detection, argument coherence checks).  
-- Per‑student analytics and progress insights built on top of the existing JSONL logs.  
-- Better editor UX (Markdown, comments, inline annotations).
-
-## How to run
+## How to Run
 
 ```bash
 npm install
-npm run dev   # backend + renderer + Electron
+npm run dev
 ```
 
-For a quick analytics summary of interactions:
+Press **⌘↵** (or **Ctrl+Enter**) to analyze your draft.
 
-```bash
-npm run summary
+---
+
+## Interface
+
 ```
+┌─────────────────────────────────────────────────────────────┐
+│ Write-Right          450 words  |  2 min  |  78 quality    │
+├─────────────────────────────────────────────────────────────┤
+│                              │                              │
+│    DRAFT (Hero)              │    REVISION INSIGHTS         │
+│                              │    ─────────────────         │
+│    Your essay lives          │    [Mechanics] [Clarity]     │
+│    here. Distraction-        │    [Flow] [Argument]         │
+│    free, serif type,         │    [Checklist]               │
+│    generous spacing.         │                              │
+│                              │    Signals appear here       │
+│                              │    with guidance on how      │
+│                              │    to revise.                │
+│                              │                              │
+├─────────────────────────────────────────────────────────────┤
+│          Designed to improve your writing — not replace it. │
+└─────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## Architecture
+
+```
+src/
+├── backend/
+│   ├── agents/
+│   │   └── writingCoach.ts    # Deterministic analysis engine
+│   ├── routes/
+│   │   ├── analyze.ts         # POST /analyze
+│   │   ├── autosave.ts        # Draft persistence
+│   │   └── log.ts             # Interaction logging
+│   └── server.ts
+├── renderer/
+│   ├── components/
+│   │   ├── InsightsPanel.tsx  # Revision signals panel
+│   │   └── Editor.tsx         # Draft editor (hero)
+│   ├── App.tsx
+│   ├── types.ts
+│   └── styles.css
+└── main/
+    └── index.ts               # Electron main process
+```
+
+---
+
+## Design Decisions
+
+### Guardrails Against Content Generation
+
+The analysis engine enforces strict limits:
+- No suggestion exceeds 15 words
+- No multi-sentence outputs
+- No paragraph rewrites
+- Truncation enforced in code (`truncateSuggestion()`)
+
+### Terminology
+
+We deliberately avoid:
+- "AI", "assistant", "coach", "generate", "rewrite"
+
+We use:
+- "Draft Analysis", "Revision Insights", "Signals", "Guidance"
+
+This reinforces that the tool supports human authorship, not automation.
+
+### Visual Hierarchy
+
+- **Editor is the hero** — large, serif type, generous margins
+- **Insights panel is supportive** — smaller, utility styling, subtle background
+- **Footer badge** — constant reminder of the tool's integrity
+
+---
+
+## Tech Stack
+
+- **Frontend**: Electron + React + TypeScript
+- **Backend**: Node.js + Express (local server)
+- **Storage**: Local filesystem (JSONL logs, text drafts)
+- **External APIs**: None. 100% offline, deterministic.
+
+---
+
+## Keyboard Shortcuts
+
+| Shortcut | Action |
+|----------|--------|
+| ⌘↵ / Ctrl+Enter | Analyze draft |
+
+---
+
+## What Changed (v2 Refinement)
+
+### Product Identity
+- Renamed panel from "Writing Coach" → "Revision Insights"
+- Replaced "Analyze" → "Analyze Draft"
+- Changed "issues" → "signals"
+- Updated all copy to emphasize craftsmanship and revision
+
+### UI Polish
+- Editor now uses serif typography with generous line height
+- Clearer visual hierarchy: editor as hero, insights as supportive
+- Refined color system for severity (critical/warning/info)
+- Added "Last analyzed X ago" indicator
+- Added integrity badge in footer
+- Improved spacing, typography scale, and hover states
+
+### Interaction Model
+- Removed any language suggesting content generation
+- Signals described as patterns to notice, not corrections to accept
+- "Revision guidance" instead of "How to fix"
+
+---
+
+## License
+
+MIT
