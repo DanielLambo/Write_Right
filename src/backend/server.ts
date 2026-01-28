@@ -5,7 +5,7 @@ import { logRouter } from './routes/log';
 import { autosaveRouter } from './routes/autosave';
 
 const app = express();
-const PORT = 3001;
+const PORT = Number(process.env.BACKEND_PORT ?? 3051);
 
 app.use(cors());
 app.use(express.json());

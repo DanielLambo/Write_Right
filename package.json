@@ -7,7 +7,7 @@
     "dev": "concurrently \"npm run dev:backend\" \"npm run dev:renderer\" \"npm run dev:electron\"",
     "dev:backend": "tsx watch src/backend/server.ts",
     "dev:renderer": "vite",
-    "dev:electron": "wait-on http://localhost:3000 http://localhost:3001 && cross-env NODE_ENV=development electron .",
+    "dev:electron": "wait-on http://localhost:5173 http://localhost:3051 && cross-env NODE_ENV=development electron .",
     "build": "tsc && npm run build:renderer",
     "build:renderer": "vite build",
     "start": "electron .",

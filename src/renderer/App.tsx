@@ -3,7 +3,7 @@ import Editor from './components/Editor';
 import Assistant from './components/Assistant';
 import { AssistResponse } from './types';
 
-const API_BASE = 'http://localhost:3001';
+const API_BASE = 'http://localhost:3051';
 
 function App() {
   const [essayText, setEssayText] = useState('');
