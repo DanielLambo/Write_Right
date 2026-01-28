@@ -1,5 +1,3 @@
-// Write-Right Types
-
 export type IssueSeverity = 'error' | 'warning' | 'suggestion';
 export type IssueCategory = 'grammar' | 'clarity' | 'structure' | 'argument';
 export type CoachTab = 'grammar' | 'clarity' | 'structure' | 'argument' | 'checklist';
