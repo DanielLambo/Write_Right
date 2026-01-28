@@ -10,7 +10,17 @@
  * GUARDRAIL: This engine NEVER generates content.
  * It only identifies issues and provides guidance.
  * Any suggestion must be <= 1 sentence or a short phrase.
+ * 
+ * Optional: LanguageTool integration for enhanced grammar checking.
+ * Set LANGUAGETOOL_MODE=api and LANGUAGETOOL_URL to enable.
  */
+
+// ============================================================================
+// CONFIGURATION
+// ============================================================================
+
+const LANGUAGETOOL_MODE = process.env.LANGUAGETOOL_MODE || 'heuristic';
+const LANGUAGETOOL_URL = process.env.LANGUAGETOOL_URL || 'http://localhost:8010/v2/check';
 
 // ============================================================================
 // TYPES
@@ -650,9 +660,202 @@ function calculateQualityScore(text: string, issues: WritingIssue[]): number {
 }
 
 // ============================================================================
+// LANGUAGETOOL INTEGRATION
+// ============================================================================
+
+interface LanguageToolMatch {
+  message: string;
+  shortMessage?: string;
+  offset: number;
+  length: number;
+  replacements: Array<{ value: string }>;
+  rule: {
+    id: string;
+    description: string;
+    category: { id: string; name: string };
+  };
+  context: {
+    text: string;
+    offset: number;
+    length: number;
+  };
+}
+
+interface LanguageToolResponse {
+  matches: LanguageToolMatch[];
+}
+
+/**
+ * Call LanguageTool API for grammar checking
+ */
+async function checkWithLanguageTool(text: string): Promise<WritingIssue[]> {
+  try {
+    const response = await fetch(LANGUAGETOOL_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: new URLSearchParams({
+        text,
+        language: 'en-US',
+        enabledOnly: 'false',
+      }),
+    });
+
+    if (!response.ok) {
+      console.warn(`LanguageTool API error: ${response.status}`);
+      return [];
+    }
+
+    const data: LanguageToolResponse = await response.json();
+    
+    return data.matches.map((match): WritingIssue => {
+      // Map LanguageTool categories to our categories
+      const categoryMap: Record<string, IssueCategory> = {
+        'TYPOS': 'grammar',
+        'GRAMMAR': 'grammar',
+        'PUNCTUATION': 'grammar',
+        'CASING': 'grammar',
+        'CONFUSED_WORDS': 'grammar',
+        'REDUNDANCY': 'clarity',
+        'STYLE': 'clarity',
+        'TYPOGRAPHY': 'grammar',
+        'MISC': 'grammar',
+      };
+
+      const category = categoryMap[match.rule.category.id] || 'grammar';
+      
+      // Map severity based on rule category
+      let severity: IssueSeverity = 'warning';
+      if (match.rule.category.id === 'TYPOS' || match.rule.category.id === 'GRAMMAR') {
+        severity = 'error';
+      } else if (match.rule.category.id === 'STYLE' || match.rule.category.id === 'REDUNDANCY') {
+        severity = 'suggestion';
+      }
+
+      // Get micro-suggestion from replacements (first suggestion only)
+      const microSuggestion = match.replacements.length > 0 
+        ? truncateSuggestion(match.replacements.slice(0, 3).map(r => r.value).join(', '))
+        : undefined;
+
+      // Extract excerpt from context
+      const excerpt = match.context.text.substring(
+        match.context.offset,
+        match.context.offset + match.context.length
+      );
+
+      return {
+        id: generateId(),
+        category,
+        severity,
+        title: match.shortMessage || match.rule.description,
+        description: match.message,
+        howToFix: match.replacements.length > 0 
+          ? `Consider: "${match.replacements[0].value}"`
+          : 'Review and revise this section.',
+        microSuggestion,
+        startIndex: match.offset,
+        endIndex: match.offset + match.length,
+        excerpt: excerpt || text.substring(match.offset, match.offset + match.length),
+      };
+    });
+  } catch (error) {
+    console.warn('LanguageTool unavailable, falling back to heuristics:', error);
+    return [];
+  }
+}
+
+// ============================================================================
 // MAIN ANALYSIS FUNCTION
 // ============================================================================
 
+/**
+ * Analyze essay with optional LanguageTool integration.
+ * If LANGUAGETOOL_MODE=api, uses LanguageTool for grammar.
+ * Always runs heuristic checks for clarity, structure, argument.
+ */
+export async function analyzeEssayAsync(text: string): Promise<AnalysisResult> {
+  if (!text || text.trim().length === 0) {
+    return {
+      qualityScore: 0,
+      wordCount: 0,
+      sentenceCount: 0,
+      paragraphCount: 0,
+      readingTimeMinutes: 0,
+      issues: [],
+      checklist: generateChecklist('', []),
+      categoryCounts: { grammar: 0, clarity: 0, structure: 0, argument: 0 },
+    };
+  }
+
+  let grammarIssues: WritingIssue[] = [];
+
+  // Use LanguageTool if configured
+  if (LANGUAGETOOL_MODE === 'api') {
+    grammarIssues = await checkWithLanguageTool(text);
+    console.log(`LanguageTool returned ${grammarIssues.length} issues`);
+  }
+
+  // If LanguageTool didn't return results, fall back to heuristics
+  if (grammarIssues.length === 0) {
+    grammarIssues = [
+      ...checkSpelling(text),
+      ...checkPunctuation(text),
+    ];
+  }
+
+  // Always run our heuristic checks for non-grammar categories
+  const issues: WritingIssue[] = [
+    ...grammarIssues,
+    ...checkSentenceLength(text),
+    ...checkPassiveVoice(text),
+    ...checkWeakWords(text),
+    ...checkWordRepetition(text),
+    ...checkParagraphLength(text),
+    ...checkTransitions(text),
+    ...checkIntroConclusion(text),
+    ...checkUnsupportedClaims(text),
+    ...checkQuestionableStatements(text),
+  ];
+
+  // GUARDRAIL: Ensure no suggestion is too long
+  for (const issue of issues) {
+    if (issue.microSuggestion) {
+      issue.microSuggestion = truncateSuggestion(issue.microSuggestion);
+    }
+  }
+
+  // Sort by position
+  issues.sort((a, b) => a.startIndex - b.startIndex);
+
+  // Calculate stats
+  const wordCount = countWords(text);
+  const sentenceCount = countSentences(text);
+  const paragraphCount = countParagraphs(text);
+
+  // Category counts
+  const categoryCounts: Record<IssueCategory, number> = {
+    grammar: issues.filter(i => i.category === 'grammar').length,
+    clarity: issues.filter(i => i.category === 'clarity').length,
+    structure: issues.filter(i => i.category === 'structure').length,
+    argument: issues.filter(i => i.category === 'argument').length,
+  };
+
+  return {
+    qualityScore: calculateQualityScore(text, issues),
+    wordCount,
+    sentenceCount,
+    paragraphCount,
+    readingTimeMinutes: calculateReadingTime(wordCount),
+    issues,
+    checklist: generateChecklist(text, issues),
+    categoryCounts,
+  };
+}
+
+/**
+ * Synchronous version (uses heuristics only, for backwards compatibility)
+ */
 export function analyzeEssay(text: string): AnalysisResult {
   if (!text || text.trim().length === 0) {
     return {
@@ -731,4 +934,126 @@ export function analyzeSelection(
   return fullAnalysis.issues.filter(
     issue => issue.startIndex < selectionEnd && issue.endIndex > selectionStart
   );
+}
+
+// ============================================================================
+// SIMPLIFICATION (Sentence-Level Only)
+// ============================================================================
+
+export interface SimplifyResult {
+  original: string;
+  simplified: string;
+  changes: string[];
+  disclaimer: string;
+}
+
+/**
+ * Simplify a sentence by removing filler words and tightening phrasing.
+ * GUARDRAIL: Only works on single sentences. Returns original if too long.
+ */
+export function simplifySentence(text: string): SimplifyResult {
+  const original = text.trim();
+  const changes: string[] = [];
+  
+  // GUARDRAIL: Reject if more than ~50 words (likely multiple sentences)
+  const wordCount = original.split(/\s+/).length;
+  if (wordCount > 50) {
+    return {
+      original,
+      simplified: original,
+      changes: ['Selection too long. Please select a single sentence.'],
+      disclaimer: 'Simplification works best on single sentences.',
+    };
+  }
+
+  let simplified = original;
+
+  // 1. Remove filler words/phrases
+  const fillerPatterns: Array<{ pattern: RegExp; label: string }> = [
+    { pattern: /\b(very|really|extremely|incredibly)\s+/gi, label: 'Removed intensifier' },
+    { pattern: /\b(just|simply|merely)\s+/gi, label: 'Removed filler' },
+    { pattern: /\b(basically|essentially|fundamentally)\s+/gi, label: 'Removed filler' },
+    { pattern: /\b(actually|literally|virtually)\s+/gi, label: 'Removed filler' },
+    { pattern: /\b(in order to)\b/gi, label: 'Shortened "in order to" → "to"' },
+    { pattern: /\b(due to the fact that)\b/gi, label: 'Shortened "due to the fact that" → "because"' },
+    { pattern: /\b(in spite of the fact that)\b/gi, label: 'Shortened phrase → "although"' },
+    { pattern: /\b(at this point in time)\b/gi, label: 'Shortened "at this point in time" → "now"' },
+    { pattern: /\b(for the purpose of)\b/gi, label: 'Shortened "for the purpose of" → "to"' },
+    { pattern: /\b(in the event that)\b/gi, label: 'Shortened "in the event that" → "if"' },
+    { pattern: /\b(it is important to note that)\s*/gi, label: 'Removed throat-clearing' },
+    { pattern: /\b(it should be noted that)\s*/gi, label: 'Removed throat-clearing' },
+    { pattern: /\b(it is worth mentioning that)\s*/gi, label: 'Removed throat-clearing' },
+    { pattern: /\b(the fact that)\s+/gi, label: 'Removed "the fact that"' },
+  ];
+
+  for (const { pattern, label } of fillerPatterns) {
+    if (pattern.test(simplified)) {
+      changes.push(label);
+    }
+  }
+
+  // Apply replacements
+  simplified = simplified
+    .replace(/\b(very|really|extremely|incredibly)\s+/gi, '')
+    .replace(/\b(just|simply|merely)\s+/gi, '')
+    .replace(/\b(basically|essentially|fundamentally)\s+/gi, '')
+    .replace(/\b(actually|literally|virtually)\s+/gi, '')
+    .replace(/\bin order to\b/gi, 'to')
+    .replace(/\bdue to the fact that\b/gi, 'because')
+    .replace(/\bin spite of the fact that\b/gi, 'although')
+    .replace(/\bat this point in time\b/gi, 'now')
+    .replace(/\bfor the purpose of\b/gi, 'to')
+    .replace(/\bin the event that\b/gi, 'if')
+    .replace(/\bit is important to note that\s*/gi, '')
+    .replace(/\bit should be noted that\s*/gi, '')
+    .replace(/\bit is worth mentioning that\s*/gi, '')
+    .replace(/\bthe fact that\s+/gi, '');
+
+  // 2. Fix common wordy constructions
+  const wordyReplacements: Array<{ from: RegExp; to: string; label: string }> = [
+    { from: /\bis able to\b/gi, to: 'can', label: '"is able to" → "can"' },
+    { from: /\bhas the ability to\b/gi, to: 'can', label: '"has the ability to" → "can"' },
+    { from: /\bmake a decision\b/gi, to: 'decide', label: '"make a decision" → "decide"' },
+    { from: /\bcome to a conclusion\b/gi, to: 'conclude', label: '"come to a conclusion" → "conclude"' },
+    { from: /\bgive consideration to\b/gi, to: 'consider', label: '"give consideration to" → "consider"' },
+    { from: /\bmake an attempt\b/gi, to: 'try', label: '"make an attempt" → "try"' },
+    { from: /\btake into consideration\b/gi, to: 'consider', label: '"take into consideration" → "consider"' },
+    { from: /\ba large number of\b/gi, to: 'many', label: '"a large number of" → "many"' },
+    { from: /\ba small number of\b/gi, to: 'few', label: '"a small number of" → "few"' },
+    { from: /\bat the present time\b/gi, to: 'now', label: '"at the present time" → "now"' },
+    { from: /\bin today's society\b/gi, to: 'today', label: '"in today\'s society" → "today"' },
+  ];
+
+  for (const { from, to, label } of wordyReplacements) {
+    if (from.test(simplified)) {
+      simplified = simplified.replace(from, to);
+      changes.push(label);
+    }
+  }
+
+  // 3. Clean up extra spaces and capitalize first letter
+  simplified = simplified
+    .replace(/\s+/g, ' ')
+    .trim();
+  
+  if (simplified.length > 0) {
+    simplified = simplified.charAt(0).toUpperCase() + simplified.slice(1);
+  }
+
+  // If no changes, say so
+  if (simplified === original || changes.length === 0) {
+    return {
+      original,
+      simplified: original,
+      changes: ['No simplifications found. The sentence looks concise.'],
+      disclaimer: 'This is a suggestion — you decide what works best.',
+    };
+  }
+
+  return {
+    original,
+    simplified,
+    changes,
+    disclaimer: 'This is a suggestion — you decide what works best.',
+  };
 }
