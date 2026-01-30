@@ -112,7 +112,7 @@ body {
 
 /* Insights Panel */
 .insights-section {
-  width: 360px;
+  width: 380px;
   display: flex;
   flex-direction: column;
   background: #fafafa;
@@ -128,9 +128,10 @@ body {
 .tabs {
   display: flex;
   padding: 8px;
-  gap: 4px;
+  gap: 2px;
   background: white;
   border-bottom: 1px solid #e5e5e5;
+  flex-wrap: wrap;
 }
 
 .tab {
@@ -139,13 +140,14 @@ body {
   background: none;
   border: none;
   border-radius: 4px;
-  font-size: 12px;
+  font-size: 11px;
   color: #666;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 4px;
+  min-width: 50px;
 }
 
 .tab:hover {
@@ -159,7 +161,7 @@ body {
 
 .tab .count {
   background: rgba(0,0,0,0.1);
-  padding: 1px 6px;
+  padding: 1px 5px;
   border-radius: 8px;
   font-size: 10px;
 }
@@ -198,53 +200,210 @@ body {
   font-size: 11px;
 }
 
-/* Checklist */
-.checklist-view {
+/* Overview View */
+.overview-view {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.score-header {
   text-align: center;
+  padding: 20px;
+  background: white;
+  border-radius: 12px;
+  border: 1px solid #e5e5e5;
 }
 
 .score {
   font-size: 48px;
   font-weight: 700;
-  margin-bottom: 24px;
+  line-height: 1;
 }
 
 .score span {
-  font-size: 20px;
+  font-size: 18px;
   color: #999;
   font-weight: 400;
 }
 
-.checklist {
-  list-style: none;
-  text-align: left;
+.score-label {
+  font-size: 12px;
+  color: #666;
+  margin-top: 4px;
 }
 
-.checklist li {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 10px 12px;
+/* Priority Sections */
+.priority-section {
   background: white;
-  border-radius: 6px;
-  margin-bottom: 6px;
-  font-size: 13px;
+  border-radius: 8px;
+  padding: 12px;
+  border: 1px solid #e5e5e5;
 }
 
-.checklist li.done {
+.priority-section h3 {
+  font-size: 13px;
+  font-weight: 600;
+  margin-bottom: 10px;
+}
+
+.priority-section.fix-first {
+  border-left: 3px solid #ef4444;
+}
+
+.priority-section.then-polish {
+  border-left: 3px solid #f59e0b;
+}
+
+.priority-section ul {
+  list-style: none;
+}
+
+.priority-section li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 10px;
+  margin-bottom: 4px;
+  background: #f9f9f9;
+  border-radius: 6px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.priority-section li:hover {
+  background: #f0f0f0;
+}
+
+.priority-label {
+  color: #333;
+}
+
+.priority-count {
+  background: #e5e5e5;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 600;
   color: #666;
 }
 
-.checklist li.done .icon {
+.all-good {
+  text-align: center;
+  padding: 30px;
+  background: #f0fdf4;
+  border-radius: 8px;
+  border: 1px solid #bbf7d0;
+}
+
+.all-good-icon {
+  font-size: 32px;
+  display: block;
+  margin-bottom: 8px;
   color: #22c55e;
 }
 
-.checklist .icon {
+.all-good p {
+  color: #166534;
   font-size: 14px;
-  color: #ccc;
 }
 
-/* Issues */
+.issue-summary {
+  text-align: center;
+  padding: 12px;
+  color: #666;
+  font-size: 12px;
+}
+
+/* Checklist View */
+.checklist-view h3 {
+  font-size: 16px;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.checklist-subtitle {
+  font-size: 12px;
+  color: #666;
+  margin-bottom: 16px;
+}
+
+.checklist {
+  list-style: none;
+}
+
+.checklist-item {
+  display: flex;
+  gap: 12px;
+  padding: 12px;
+  background: white;
+  border-radius: 8px;
+  margin-bottom: 8px;
+  border: 1px solid #e5e5e5;
+}
+
+.checklist-item.pass {
+  border-left: 3px solid #22c55e;
+  background: #f0fdf4;
+}
+
+.checklist-item.warning {
+  border-left: 3px solid #f59e0b;
+  background: #fffbeb;
+}
+
+.checklist-item.fail {
+  border-left: 3px solid #ef4444;
+  background: #fef2f2;
+}
+
+.status-icon {
+  font-size: 16px;
+  width: 20px;
+  text-align: center;
+}
+
+.status-icon.pass { color: #22c55e; }
+.status-icon.warning { color: #f59e0b; }
+.status-icon.fail { color: #ef4444; }
+
+.checklist-content {
+  flex: 1;
+}
+
+.checklist-label {
+  display: block;
+  font-size: 13px;
+  font-weight: 500;
+  color: #1a1a1a;
+  margin-bottom: 2px;
+}
+
+.checklist-detail {
+  font-size: 11px;
+  color: #666;
+}
+
+.checklist-footer {
+  margin-top: 20px;
+  padding: 16px;
+  background: #f5f5f5;
+  border-radius: 8px;
+  text-align: center;
+}
+
+.integrity-note {
+  font-size: 12px;
+  color: #666;
+  line-height: 1.5;
+}
+
+.integrity-note strong {
+  color: #1a1a1a;
+}
+
+/* Issues View */
 .issues {
   list-style: none;
 }

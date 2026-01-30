@@ -1,6 +1,7 @@
 export type IssueSeverity = 'error' | 'warning' | 'suggestion';
 export type IssueCategory = 'grammar' | 'clarity' | 'structure' | 'argument';
-export type CoachTab = 'grammar' | 'clarity' | 'structure' | 'argument' | 'checklist';
+export type CoachTab = 'overview' | 'grammar' | 'clarity' | 'structure' | 'argument' | 'checklist';
+export type CheckStatus = 'pass' | 'warning' | 'fail';
 
 export interface WritingIssue {
   id: string;
@@ -18,8 +19,14 @@ export interface WritingIssue {
 export interface ChecklistItem {
   id: string;
   label: string;
-  checked: boolean;
-  tip: string;
+  status: CheckStatus;
+  detail: string;
+}
+
+export interface PriorityItem {
+  label: string;
+  count?: number;
+  category: IssueCategory | 'structure';
 }
 
 export interface AnalysisResult {
@@ -30,5 +37,7 @@ export interface AnalysisResult {
   readingTimeMinutes: number;
   issues: WritingIssue[];
   checklist: ChecklistItem[];
+  fixFirst: PriorityItem[];
+  thenPolish: PriorityItem[];
   categoryCounts: Record<IssueCategory, number>;
 }

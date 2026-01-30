@@ -28,6 +28,7 @@ const LANGUAGETOOL_URL = process.env.LANGUAGETOOL_URL || 'http://localhost:8010/
 
 export type IssueSeverity = 'error' | 'warning' | 'suggestion';
 export type IssueCategory = 'grammar' | 'clarity' | 'structure' | 'argument';
+export type CheckStatus = 'pass' | 'warning' | 'fail';
 
 export interface WritingIssue {
   id: string;
@@ -48,8 +49,14 @@ export interface WritingIssue {
 export interface ChecklistItem {
   id: string;
   label: string;
-  checked: boolean;
-  tip: string;
+  status: CheckStatus;
+  detail: string;
+}
+
+export interface PriorityItem {
+  label: string;
+  count?: number;
+  category: IssueCategory | 'structure';
 }
 
 export interface AnalysisResult {
@@ -61,6 +68,10 @@ export interface AnalysisResult {
   readingTimeMinutes: number;
   issues: WritingIssue[];
   checklist: ChecklistItem[];
+  /** Fix these first - critical issues */
+  fixFirst: PriorityItem[];
+  /** Then polish - secondary issues */
+  thenPolish: PriorityItem[];
   /** Summary stats per category */
   categoryCounts: Record<IssueCategory, number>;
 }
@@ -575,60 +586,150 @@ function checkQuestionableStatements(text: string): WritingIssue[] {
 }
 
 // ============================================================================
-// CHECKLIST GENERATION
+// CHECKLIST GENERATION (Before You Submit)
 // ============================================================================
 
 function generateChecklist(text: string, issues: WritingIssue[]): ChecklistItem[] {
   const wordCount = countWords(text);
   const paragraphCount = countParagraphs(text);
   const paragraphs = getParagraphs(text);
+  const sentences = getSentences(text);
 
-  const grammarIssues = issues.filter(i => i.category === 'grammar' && i.severity === 'error').length;
-  const hasTransitions = paragraphs.length < 3 || issues.filter(i => i.title.includes('transition')).length < paragraphs.length - 2;
-  const hasThesis = paragraphs.length > 0 && ['argue', 'claim', 'believe', 'will discuss', 'this essay'].some(
+  // Counts
+  const grammarErrors = issues.filter(i => i.category === 'grammar' && i.severity === 'error').length;
+  const unsupportedClaims = issues.filter(i => i.title.includes('Claim may need support')).length;
+  const missingTransitions = issues.filter(i => i.title.includes('transition')).length;
+  
+  // Thesis check
+  const hasThesis = paragraphs.length > 0 && ['argue', 'claim', 'believe', 'will discuss', 'this essay', 'this paper', 'position', 'contend'].some(
     t => paragraphs[0].text.toLowerCase().includes(t)
   );
+  
+  // Topic sentences check (first sentence of each body paragraph should be clear)
+  const bodyParagraphs = paragraphs.slice(1, -1);
+  const paragraphsWithTopicSentences = bodyParagraphs.filter(p => {
+    const firstSentence = p.text.split(/[.!?]/)[0]?.toLowerCase() || '';
+    // Topic sentences often have clear indicators
+    return firstSentence.length > 20 && !firstSentence.startsWith('for example') && !firstSentence.startsWith('also');
+  }).length;
+  const topicSentenceRatio = bodyParagraphs.length > 0 ? paragraphsWithTopicSentences / bodyParagraphs.length : 1;
+
+  // Conclusion check
+  const hasConclusion = paragraphs.length > 0 && ['in conclusion', 'to summarize', 'in summary', 'therefore', 'thus', 'overall', 'finally'].some(
+    t => paragraphs[paragraphs.length - 1].text.toLowerCase().includes(t)
+  );
+
+  // Evidence check
+  const evidenceIndicators = ['because', 'since', 'for example', 'for instance', 'according to', 'research', 'study', 'evidence', 'shows', 'demonstrates'];
+  const sentencesWithEvidence = sentences.filter(s => 
+    evidenceIndicators.some(e => s.text.toLowerCase().includes(e))
+  ).length;
+  const evidenceRatio = sentences.length > 0 ? sentencesWithEvidence / sentences.length : 0;
 
   return [
     {
-      id: 'grammar',
-      label: 'No major grammar errors',
-      checked: grammarIssues === 0,
-      tip: grammarIssues > 0 ? `Found ${grammarIssues} grammar issues to fix.` : 'Grammar looks good!',
-    },
-    {
-      id: 'length',
-      label: 'Sufficient length (250+ words)',
-      checked: wordCount >= 250,
-      tip: wordCount < 250 ? `Currently ${wordCount} words. Consider expanding your ideas.` : `${wordCount} words — good length.`,
-    },
-    {
-      id: 'paragraphs',
-      label: 'Multiple paragraphs (3+)',
-      checked: paragraphCount >= 3,
-      tip: paragraphCount < 3 ? 'Add more paragraphs to organize your ideas.' : `${paragraphCount} paragraphs — well structured.`,
-    },
-    {
       id: 'thesis',
-      label: 'Clear thesis/main argument',
-      checked: hasThesis,
-      tip: hasThesis ? 'Thesis detected in introduction.' : 'Consider adding a clearer thesis statement.',
+      label: 'Thesis clearly stated in introduction',
+      status: hasThesis ? 'pass' : 'fail',
+      detail: hasThesis ? 'Thesis statement detected' : 'Add a clear thesis in your first paragraph',
     },
     {
-      id: 'transitions',
-      label: 'Transitions between paragraphs',
-      checked: hasTransitions,
-      tip: hasTransitions ? 'Transitions look good.' : 'Add transition words between some paragraphs.',
+      id: 'topic-sentences',
+      label: 'Each paragraph has a topic sentence',
+      status: topicSentenceRatio >= 0.8 ? 'pass' : topicSentenceRatio >= 0.5 ? 'warning' : 'fail',
+      detail: topicSentenceRatio >= 0.8 ? 'Topic sentences look good' : 'Start each paragraph with a clear main point',
     },
     {
-      id: 'conclusion',
-      label: 'Strong conclusion',
-      checked: paragraphs.length > 0 && ['conclusion', 'summarize', 'summary', 'therefore', 'thus'].some(
-        t => paragraphs[paragraphs.length - 1].text.toLowerCase().includes(t)
-      ),
-      tip: 'End with a conclusion that ties back to your thesis.',
+      id: 'evidence',
+      label: 'Claims supported with evidence',
+      status: unsupportedClaims === 0 ? 'pass' : unsupportedClaims <= 2 ? 'warning' : 'fail',
+      detail: unsupportedClaims === 0 ? 'Claims are supported' : `${unsupportedClaims} claim${unsupportedClaims > 1 ? 's' : ''} need${unsupportedClaims === 1 ? 's' : ''} support`,
+    },
+    {
+      id: 'grammar',
+      label: 'Grammar errors under threshold',
+      status: grammarErrors === 0 ? 'pass' : grammarErrors <= 3 ? 'warning' : 'fail',
+      detail: grammarErrors === 0 ? 'No major grammar errors' : `${grammarErrors} grammar error${grammarErrors > 1 ? 's' : ''} to fix`,
+    },
+    {
+      id: 'structure',
+      label: 'Clear introduction and conclusion',
+      status: hasThesis && hasConclusion ? 'pass' : hasThesis || hasConclusion ? 'warning' : 'fail',
+      detail: hasThesis && hasConclusion ? 'Structure looks complete' : !hasThesis ? 'Strengthen your introduction' : 'Add a conclusion',
+    },
+    {
+      id: 'flow',
+      label: 'Smooth transitions between ideas',
+      status: missingTransitions === 0 ? 'pass' : missingTransitions <= 2 ? 'warning' : 'fail',
+      detail: missingTransitions === 0 ? 'Transitions are smooth' : `${missingTransitions} paragraph${missingTransitions > 1 ? 's' : ''} could use transitions`,
     },
   ];
+}
+
+// ============================================================================
+// PRIORITY GENERATION (Fix Order)
+// ============================================================================
+
+function generatePriorities(text: string, issues: WritingIssue[]): { fixFirst: PriorityItem[]; thenPolish: PriorityItem[] } {
+  const paragraphs = getParagraphs(text);
+  const fixFirst: PriorityItem[] = [];
+  const thenPolish: PriorityItem[] = [];
+
+  // Check for missing thesis
+  const hasThesis = paragraphs.length > 0 && ['argue', 'claim', 'believe', 'will discuss', 'this essay', 'this paper'].some(
+    t => paragraphs[0].text.toLowerCase().includes(t)
+  );
+  if (!hasThesis && paragraphs.length > 0) {
+    fixFirst.push({ label: 'Missing thesis in introduction', category: 'structure' });
+  }
+
+  // Count unsupported claims
+  const unsupportedClaims = issues.filter(i => i.title.includes('Claim may need support')).length;
+  if (unsupportedClaims > 0) {
+    fixFirst.push({ label: 'Unsupported claims', count: unsupportedClaims, category: 'argument' });
+  }
+
+  // Count grammar errors by severity
+  const grammarErrors = issues.filter(i => i.category === 'grammar' && i.severity === 'error').length;
+  if (grammarErrors > 0) {
+    fixFirst.push({ label: 'Grammar errors', count: grammarErrors, category: 'grammar' });
+  }
+
+  // Missing conclusion
+  const hasConclusion = paragraphs.length > 0 && ['in conclusion', 'to summarize', 'in summary', 'therefore', 'thus', 'overall'].some(
+    t => paragraphs[paragraphs.length - 1].text.toLowerCase().includes(t)
+  );
+  if (!hasConclusion && paragraphs.length >= 3) {
+    fixFirst.push({ label: 'Weak or missing conclusion', category: 'structure' });
+  }
+
+  // Polish items (less critical)
+  const passiveVoice = issues.filter(i => i.title.includes('Passive voice')).length;
+  if (passiveVoice > 0) {
+    thenPolish.push({ label: 'Passive voice', count: passiveVoice, category: 'clarity' });
+  }
+
+  const longSentences = issues.filter(i => i.title.includes('Long sentence') || i.title.includes('Very long')).length;
+  if (longSentences > 0) {
+    thenPolish.push({ label: 'Long sentences', count: longSentences, category: 'clarity' });
+  }
+
+  const repetition = issues.filter(i => i.title.includes('repetition')).length;
+  if (repetition > 0) {
+    thenPolish.push({ label: 'Word repetition', count: repetition, category: 'clarity' });
+  }
+
+  const weakWords = issues.filter(i => i.title.includes('Weak') || i.title.includes('filler')).length;
+  if (weakWords > 0) {
+    thenPolish.push({ label: 'Filler words', count: weakWords, category: 'clarity' });
+  }
+
+  const transitions = issues.filter(i => i.title.includes('transition')).length;
+  if (transitions > 0) {
+    thenPolish.push({ label: 'Missing transitions', count: transitions, category: 'structure' });
+  }
+
+  return { fixFirst, thenPolish };
 }
 
 // ============================================================================
@@ -784,6 +885,8 @@ export async function analyzeEssayAsync(text: string): Promise<AnalysisResult> {
       readingTimeMinutes: 0,
       issues: [],
       checklist: generateChecklist('', []),
+      fixFirst: [],
+      thenPolish: [],
       categoryCounts: { grammar: 0, clarity: 0, structure: 0, argument: 0 },
     };
   }
@@ -841,6 +944,9 @@ export async function analyzeEssayAsync(text: string): Promise<AnalysisResult> {
     argument: issues.filter(i => i.category === 'argument').length,
   };
 
+  // Generate priorities
+  const { fixFirst, thenPolish } = generatePriorities(text, issues);
+
   return {
     qualityScore: calculateQualityScore(text, issues),
     wordCount,
@@ -849,6 +955,8 @@ export async function analyzeEssayAsync(text: string): Promise<AnalysisResult> {
     readingTimeMinutes: calculateReadingTime(wordCount),
     issues,
     checklist: generateChecklist(text, issues),
+    fixFirst,
+    thenPolish,
     categoryCounts,
   };
 }
@@ -866,6 +974,8 @@ export function analyzeEssay(text: string): AnalysisResult {
       readingTimeMinutes: 0,
       issues: [],
       checklist: generateChecklist('', []),
+      fixFirst: [],
+      thenPolish: [],
       categoryCounts: { grammar: 0, clarity: 0, structure: 0, argument: 0 },
     };
   }
@@ -908,6 +1018,9 @@ export function analyzeEssay(text: string): AnalysisResult {
     argument: issues.filter(i => i.category === 'argument').length,
   };
 
+  // Generate priorities
+  const { fixFirst, thenPolish } = generatePriorities(text, issues);
+
   return {
     qualityScore: calculateQualityScore(text, issues),
     wordCount,
@@ -916,6 +1029,8 @@ export function analyzeEssay(text: string): AnalysisResult {
     readingTimeMinutes: calculateReadingTime(wordCount),
     issues,
     checklist: generateChecklist(text, issues),
+    fixFirst,
+    thenPolish,
     categoryCounts,
   };
 }

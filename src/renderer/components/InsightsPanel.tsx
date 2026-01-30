@@ -11,16 +11,27 @@ interface Props {
 }
 
 const TABS: { id: CoachTab; label: string }[] = [
+  { id: 'overview', label: 'Overview' },
   { id: 'grammar', label: 'Grammar' },
   { id: 'clarity', label: 'Clarity' },
   { id: 'structure', label: 'Structure' },
   { id: 'argument', label: 'Argument' },
-  { id: 'checklist', label: 'Checklist' },
+  { id: 'checklist', label: 'Submit' },
 ];
 
+const STATUS_ICONS = {
+  pass: '✓',
+  warning: '⚠',
+  fail: '✗',
+};
+
 export default function InsightsPanel({ activeTab, analysis, loading, error, onTabChange, onIssueClick }: Props) {
-  const issues = analysis?.issues.filter(i => activeTab === 'checklist' || i.category === activeTab) || [];
+  const issues = analysis?.issues.filter(i => 
+    activeTab === 'overview' || activeTab === 'checklist' || i.category === activeTab
+  ) || [];
+  
   const getCount = (cat: IssueCategory) => analysis?.categoryCounts[cat] || 0;
+  const totalIssues = analysis ? Object.values(analysis.categoryCounts).reduce((a, b) => a + b, 0) : 0;
 
   return (
     <div className="insights-panel">
@@ -32,7 +43,7 @@ export default function InsightsPanel({ activeTab, analysis, loading, error, onT
             onClick={() => onTabChange(tab.id)}
           >
             {tab.label}
-            {tab.id !== 'checklist' && analysis && getCount(tab.id as IssueCategory) > 0 && (
+            {tab.id !== 'overview' && tab.id !== 'checklist' && analysis && getCount(tab.id as IssueCategory) > 0 && (
               <span className="count">{getCount(tab.id as IssueCategory)}</span>
             )}
           </button>
@@ -50,21 +61,88 @@ export default function InsightsPanel({ activeTab, analysis, loading, error, onT
           </div>
         )}
 
-        {!loading && !error && analysis && activeTab === 'checklist' && (
-          <div className="checklist-view">
-            <div className="score">{analysis.qualityScore}<span>/100</span></div>
-            <ul className="checklist">
-              {analysis.checklist.map(item => (
-                <li key={item.id} className={item.checked ? 'done' : ''}>
-                  <span className="icon">{item.checked ? '✓' : '○'}</span>
-                  <span>{item.label}</span>
-                </li>
-              ))}
-            </ul>
+        {/* OVERVIEW TAB - Priority-based */}
+        {!loading && !error && analysis && activeTab === 'overview' && (
+          <div className="overview-view">
+            <div className="score-header">
+              <div className="score">{analysis.qualityScore}<span>/100</span></div>
+              <div className="score-label">Draft Quality</div>
+            </div>
+
+            {analysis.fixFirst.length > 0 && (
+              <div className="priority-section fix-first">
+                <h3>🔴 Fix these first</h3>
+                <ul>
+                  {analysis.fixFirst.map((item, i) => (
+                    <li key={i} onClick={() => onTabChange(item.category as CoachTab)}>
+                      <span className="priority-label">{item.label}</span>
+                      {item.count && <span className="priority-count">{item.count}</span>}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {analysis.thenPolish.length > 0 && (
+              <div className="priority-section then-polish">
+                <h3>🟡 Then polish</h3>
+                <ul>
+                  {analysis.thenPolish.map((item, i) => (
+                    <li key={i} onClick={() => onTabChange(item.category as CoachTab)}>
+                      <span className="priority-label">{item.label}</span>
+                      {item.count && <span className="priority-count">{item.count}</span>}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {analysis.fixFirst.length === 0 && analysis.thenPolish.length === 0 && (
+              <div className="all-good">
+                <span className="all-good-icon">✓</span>
+                <p>Looking good! No major issues found.</p>
+              </div>
+            )}
+
+            {totalIssues > 0 && (
+              <div className="issue-summary">
+                <p>{totalIssues} total issue{totalIssues !== 1 ? 's' : ''} found</p>
+              </div>
+            )}
           </div>
         )}
 
-        {!loading && !error && analysis && activeTab !== 'checklist' && (
+        {/* CHECKLIST TAB - Before You Submit */}
+        {!loading && !error && analysis && activeTab === 'checklist' && (
+          <div className="checklist-view">
+            <h3>📋 Before You Submit</h3>
+            <p className="checklist-subtitle">Your final review checklist</p>
+            
+            <ul className="checklist">
+              {analysis.checklist.map(item => (
+                <li key={item.id} className={`checklist-item ${item.status}`}>
+                  <span className={`status-icon ${item.status}`}>
+                    {STATUS_ICONS[item.status]}
+                  </span>
+                  <div className="checklist-content">
+                    <span className="checklist-label">{item.label}</span>
+                    <span className="checklist-detail">{item.detail}</span>
+                  </div>
+                </li>
+              ))}
+            </ul>
+
+            <div className="checklist-footer">
+              <p className="integrity-note">
+                ✍️ This checklist helps you review your own work.<br/>
+                <strong>Write-Right never writes for you.</strong>
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* CATEGORY TABS - Issue lists */}
+        {!loading && !error && analysis && !['overview', 'checklist'].includes(activeTab) && (
           <div className="issues-view">
             {issues.length === 0 ? (
               <div className="state">No issues here ✓</div>
