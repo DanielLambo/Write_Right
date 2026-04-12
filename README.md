@@ -47,13 +47,25 @@ Templates provide structure with `[placeholder prompts]` — never actual conten
 
 ---
 
-## Use Cases
+## Who Should Use This
 
-- **Students** writing essays who want feedback before submitting
-- **Professionals** drafting emails, memos, and proposals
-- **Self-editing** to catch common writing issues
-- **Learning** what makes writing clear and effective
-- **ESL writers** improving grammar and style
+Write-Right exists because too many people default to AI to write for them — and never build the skill themselves. This tool is for anyone who wants to **actually get better at writing**, not outsource it.
+
+**You should use this if you:**
+- Are a student who relies on ChatGPT to write essays and wants to break that habit
+- Want real feedback on your writing without having a machine rewrite it for you
+- Are a teacher or professor looking for a tool to recommend to students that won't do the work for them
+- Are an ESL writer who wants to understand *why* something is wrong, not just see a corrected version
+- Are a developer who wants to fork this and build something better — go for it
+
+**You should NOT use this if you:**
+- Want AI to write your essays — that's the whole problem this tool is pushing back against
+- Need a grammar checker that catches everything — use Grammarly for that. This is a learning tool, not a replacement
+- Expect polished, production-grade software — this is an open-source project you can clone, run locally, and modify
+
+**For educators:** Feel free to point students here. The tool never generates content. It tells students what's weak in their writing and teaches them how to fix it themselves. That's it.
+
+**For developers:** Clone it, fork it, rip it apart, rebuild it. The MIT license means you can do whatever you want with it. If you make it better, even better.
 
 ---
 
