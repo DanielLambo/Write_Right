@@ -10,7 +10,24 @@ const app = express();
 const PORT = Number(process.env.BACKEND_PORT ?? 3051);
 
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '1mb' }));
+
+// Simple in-memory rate limiter for analyze endpoint
+const rateLimitMap = new Map<string, number[]>();
+const RATE_LIMIT_WINDOW_MS = 10_000; // 10 seconds
+const RATE_LIMIT_MAX = 10; // max 10 requests per window
+
+app.use('/analyze', (req, res, next) => {
+  const ip = req.ip || 'unknown';
+  const now = Date.now();
+  const timestamps = (rateLimitMap.get(ip) || []).filter(t => now - t < RATE_LIMIT_WINDOW_MS);
+  if (timestamps.length >= RATE_LIMIT_MAX) {
+    return res.status(429).json({ error: 'Too many requests. Please wait a moment.' });
+  }
+  timestamps.push(now);
+  rateLimitMap.set(ip, timestamps);
+  next();
+});
 
 app.use('/assist', assistRouter);
 app.use('/log', logRouter);

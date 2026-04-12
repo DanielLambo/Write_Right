@@ -51,7 +51,7 @@ export default function InsightsPanel({ activeTab, analysis, loading, error, onT
       </nav>
 
       <div className="content">
-        {loading && <div className="state">Analyzing...</div>}
+        {loading && <div className="state loading-pulse">Analyzing your writing...</div>}
         {error && <div className="state error">{error}</div>}
         
         {!loading && !error && !analysis && (
@@ -65,9 +65,33 @@ export default function InsightsPanel({ activeTab, analysis, loading, error, onT
         {!loading && !error && analysis && activeTab === 'overview' && (
           <div className="overview-view">
             <div className="score-header">
-              <div className="score">{analysis.qualityScore}<span>/100</span></div>
+              <div className={`score ${analysis.qualityScore >= 80 ? 'score-great' : analysis.qualityScore >= 60 ? 'score-good' : analysis.qualityScore >= 40 ? 'score-ok' : 'score-poor'}`}>
+                {analysis.qualityScore}<span>/100</span>
+              </div>
               <div className="score-label">Draft Quality</div>
             </div>
+
+            {analysis.readability.fleschReadingEase > 0 && (
+              <div className="readability-card">
+                <div className="readability-header">
+                  <span className="readability-title">Readability</span>
+                  <span className={`readability-level level-${analysis.readability.label.toLowerCase().replace(' ', '-')}`}>
+                    {analysis.readability.label}
+                  </span>
+                </div>
+                <div className="readability-details">
+                  <div className="readability-stat">
+                    <span className="readability-stat-value">{analysis.readability.fleschReadingEase}</span>
+                    <span className="readability-stat-label">Flesch Score</span>
+                  </div>
+                  <div className="readability-stat">
+                    <span className="readability-stat-value">{analysis.readability.gradeLevel}</span>
+                    <span className="readability-stat-label">Grade Level</span>
+                  </div>
+                </div>
+                <div className="readability-audience">{analysis.readability.audience}</div>
+              </div>
+            )}
 
             {analysis.fixFirst.length > 0 && (
               <div className="priority-section fix-first">

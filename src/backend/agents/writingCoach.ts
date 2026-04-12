@@ -66,6 +66,7 @@ export interface AnalysisResult {
   sentenceCount: number;
   paragraphCount: number;
   readingTimeMinutes: number;
+  readability: ReadabilityResult;
   issues: WritingIssue[];
   checklist: ChecklistItem[];
   /** Fix these first - critical issues */
@@ -83,33 +84,141 @@ export interface AnalysisResult {
 const MAX_SUGGESTION_WORDS = 15;
 
 const COMMON_MISSPELLINGS: Record<string, string> = {
-  'teh': 'the',
-  'adn': 'and',
-  'recieve': 'receive',
-  'seperate': 'separate',
-  'occured': 'occurred',
-  'definately': 'definitely',
-  'accomodate': 'accommodate',
-  'occurence': 'occurrence',
-  'independant': 'independent',
-  'neccessary': 'necessary',
-  'untill': 'until',
-  'wierd': 'weird',
-  'thier': 'their',
-  'freind': 'friend',
-  'goverment': 'government',
-  'enviroment': 'environment',
-  'begining': 'beginning',
-  'beleive': 'believe',
-  'acheive': 'achieve',
-  'arguement': 'argument',
+  // Original 20
+  'teh': 'the', 'adn': 'and', 'recieve': 'receive', 'seperate': 'separate',
+  'occured': 'occurred', 'definately': 'definitely', 'accomodate': 'accommodate',
+  'occurence': 'occurrence', 'independant': 'independent', 'neccessary': 'necessary',
+  'untill': 'until', 'wierd': 'weird', 'thier': 'their', 'freind': 'friend',
+  'goverment': 'government', 'enviroment': 'environment', 'begining': 'beginning',
+  'beleive': 'believe', 'acheive': 'achieve', 'arguement': 'argument',
+  // Common academic misspellings
+  'alot': 'a lot', 'noticable': 'noticeable', 'occassion': 'occasion',
+  'privelege': 'privilege', 'priviledge': 'privilege', 'refered': 'referred',
+  'referance': 'reference', 'relavant': 'relevant', 'relevent': 'relevant',
+  'responsable': 'responsible', 'succesful': 'successful', 'successfull': 'successful',
+  'tommorrow': 'tomorrow', 'tommorow': 'tomorrow', 'truely': 'truly',
+  'writting': 'writing', 'writeing': 'writing', 'grammer': 'grammar',
+  'calender': 'calendar', 'commitee': 'committee', 'concious': 'conscious',
+  'conscence': 'conscience', 'continous': 'continuous', 'curiousity': 'curiosity',
+  'dissapear': 'disappear', 'dissapoint': 'disappoint', 'embarass': 'embarrass',
+  'exagerate': 'exaggerate', 'excercise': 'exercise', 'existance': 'existence',
+  'experiance': 'experience', 'foriegn': 'foreign', 'fourty': 'forty',
+  'guage': 'gauge', 'gaurd': 'guard', 'harrass': 'harass', 'hygeine': 'hygiene',
+  'immedietly': 'immediately', 'immediatly': 'immediately', 'innoculate': 'inoculate',
+  'inteligent': 'intelligent', 'knowlege': 'knowledge', 'liason': 'liaison',
+  'maintainance': 'maintenance', 'maintenence': 'maintenance', 'millenium': 'millennium',
+  'mischevious': 'mischievous', 'misspel': 'misspell', 'neighbourhod': 'neighborhood',
+  'occassionally': 'occasionally', 'parliment': 'parliament', 'persistant': 'persistent',
+  'personel': 'personnel', 'posession': 'possession', 'potatos': 'potatoes',
+  'preceed': 'precede', 'procede': 'proceed', 'professer': 'professor',
+  'pronounciation': 'pronunciation', 'publically': 'publicly', 'questionaire': 'questionnaire',
+  'recomend': 'recommend', 'reccomend': 'recommend', 'rythm': 'rhythm',
+  'seize': 'seize', 'sieze': 'seize', 'similiar': 'similar',
+  'supercede': 'supersede', 'surprize': 'surprise', 'temperture': 'temperature',
+  'tendancy': 'tendency', 'therefor': 'therefore', 'threshhold': 'threshold',
+  'tounge': 'tongue', 'tyrany': 'tyranny', 'vaccuum': 'vacuum',
+  'vegetable': 'vegetable', 'villian': 'villain', 'wether': 'whether',
+  'wich': 'which', 'wendsday': 'Wednesday', 'wensday': 'Wednesday',
+  // Student essay common errors
+  'alright': 'all right', 'appearently': 'apparently', 'basicly': 'basically',
+  'beautifull': 'beautiful', 'becuase': 'because', 'buisness': 'business',
+  'catagory': 'category', 'charactor': 'character', 'collegue': 'colleague',
+  'comparision': 'comparison', 'competetion': 'competition', 'completly': 'completely',
+  'critisism': 'criticism', 'critisise': 'criticize', 'descision': 'decision',
+  'develope': 'develop', 'developement': 'development', 'diffrent': 'different',
+  'dilema': 'dilemma', 'disipline': 'discipline', 'doesnt': "doesn't",
+  'efficent': 'efficient', 'enviorment': 'environment', 'equiptment': 'equipment',
+  'especally': 'especially', 'explaination': 'explanation', 'familar': 'familiar',
+  'fasinating': 'fascinating', 'fianlly': 'finally', 'flourescent': 'fluorescent',
+  'geneology': 'genealogy', 'generaly': 'generally', 'govermnent': 'government',
+  'happend': 'happened', 'harasment': 'harassment', 'heighth': 'height',
+  'heirarchy': 'hierarchy', 'humourous': 'humorous', 'ignorence': 'ignorance',
+  'imaginery': 'imaginary', 'importent': 'important', 'incidently': 'incidentally',
+  'influance': 'influence', 'innocense': 'innocence', 'iresistable': 'irresistible',
+  'judgement': 'judgment', 'lenght': 'length', 'libary': 'library',
+  'litterature': 'literature', 'lonliness': 'loneliness', 'managment': 'management',
+  'medeval': 'medieval', 'momento': 'memento', 'naturaly': 'naturally',
+  'necesary': 'necessary', 'occasionaly': 'occasionally', 'oppertunity': 'opportunity',
+  'orignal': 'original', 'paralell': 'parallel', 'particulary': 'particularly',
+  'pasttime': 'pastime', 'percieve': 'perceive', 'performence': 'performance',
+  'permanant': 'permanent', 'persue': 'pursue', 'playwrite': 'playwright',
+  'politican': 'politician', 'posible': 'possible', 'practicle': 'practical',
+  'prefered': 'preferred', 'prejudise': 'prejudice', 'principel': 'principal',
+  'probaly': 'probably', 'proffessional': 'professional', 'programing': 'programming',
+  'promiss': 'promise', 'psycology': 'psychology', 'realy': 'really',
+  'recieved': 'received', 'recognise': 'recognize', 'religous': 'religious',
+  'remeber': 'remember', 'repitition': 'repetition', 'resistence': 'resistance',
+  'restraunt': 'restaurant', 'sacrefice': 'sacrifice', 'safty': 'safety',
+  'scedule': 'schedule', 'scholership': 'scholarship', 'sentance': 'sentence',
+  'significent': 'significant', 'sincerly': 'sincerely', 'speach': 'speech',
+  'strenght': 'strength', 'studing': 'studying', 'subconscious': 'subconscious',
+  'supposidly': 'supposedly', 'technicly': 'technically', 'thouroughly': 'thoroughly',
+  'tradgedy': 'tragedy', 'transfered': 'transferred', 'unforseen': 'unforeseen',
+  'unfortunatly': 'unfortunately', 'unneccesary': 'unnecessary', 'usefull': 'useful',
+  'usally': 'usually', 'vegatable': 'vegetable', 'visious': 'vicious',
+  'wieght': 'weight', 'wellfare': 'welfare', 'whitch': 'which',
 };
 
-const WEAK_WORDS = ['very', 'really', 'just', 'basically', 'actually', 'literally', 'things', 'stuff'];
+// Commonly confused word pairs with context-free detection
+const CONFUSED_WORDS: Array<{ pattern: RegExp; message: string; fix: string; suggestion: string }> = [
+  { pattern: /\btheir\s+(is|are|was|were|has|have|will|would|could|should)\b/gi, message: '"their" (possessive) may be confused with "there" (location/existence).', fix: 'Use "there" for location or "there is/are" for existence.', suggestion: 'there' },
+  { pattern: /\bthere\s+(car|house|book|dog|cat|name|friend|mother|father|teacher|work|school|opinion)\b/gi, message: '"there" may be confused with "their" (possessive).', fix: 'Use "their" to show possession (their car, their book).', suggestion: 'their' },
+  { pattern: /\byour\s+(a|an|the|going|welcome|right|wrong|not|very|so|too|also)\b/gi, message: '"your" (possessive) may be confused with "you\'re" (you are).', fix: 'If you mean "you are," write "you\'re."', suggestion: "you're" },
+  { pattern: /\bits\s+(a|an|the|been|not|very|going|important|clear|obvious|possible|necessary)\b/gi, message: 'Check if you mean "it\'s" (it is) instead of "its" (possessive).', fix: 'Use "it\'s" for "it is" and "its" for possession.', suggestion: "it's" },
+  { pattern: /\bit's\s+(own|self)\b/gi, message: '"it\'s" means "it is." For possession, use "its."', fix: 'Write "its own" (no apostrophe for possessive "its").', suggestion: 'its' },
+  { pattern: /\bthen\s+(I|you|he|she|we|they)\b/gi, message: 'Check if you mean "than" (comparison) instead of "then" (time).', fix: '"Than" compares; "then" indicates sequence.', suggestion: 'than' },
+  { pattern: /\bmore\s+then\b/gi, message: '"more then" should be "more than" (comparison).', fix: 'Use "than" for comparisons.', suggestion: 'more than' },
+  { pattern: /\bless\s+then\b/gi, message: '"less then" should be "less than."', fix: 'Use "than" for comparisons.', suggestion: 'less than' },
+  { pattern: /\bbetter\s+then\b/gi, message: '"better then" should be "better than."', fix: 'Use "than" for comparisons.', suggestion: 'better than' },
+  { pattern: /\beffect\s+(on|the|a|an)\b.*\bwill\s+effect\b/gi, message: '"effect" is usually a noun. The verb form is typically "affect."', fix: 'Use "affect" as a verb (to affect something) and "effect" as a noun (the effect).', suggestion: 'affect' },
+  { pattern: /\bwould\s+of\b/gi, message: '"would of" should be "would have" or "would\'ve."', fix: 'Write "would have" — "of" is not correct here.', suggestion: "would have" },
+  { pattern: /\bcould\s+of\b/gi, message: '"could of" should be "could have" or "could\'ve."', fix: 'Write "could have."', suggestion: "could have" },
+  { pattern: /\bshould\s+of\b/gi, message: '"should of" should be "should have" or "should\'ve."', fix: 'Write "should have."', suggestion: "should have" },
+  { pattern: /\balot\b/gi, message: '"alot" is not a word. It should be "a lot."', fix: 'Write "a lot" as two words.', suggestion: 'a lot' },
+  { pattern: /\bto\s+(loud|fast|slow|much|many|big|small|hard|easy|late|early|soon|long|short|far|close|high|low|hot|cold|old|young|new)\b/gi, message: 'Check if you mean "too" (excessively) instead of "to."', fix: 'Use "too" to mean "excessively" (too loud, too fast).', suggestion: 'too' },
+  { pattern: /\blose\s+(the|a|my|your|his|her|our|their).*\bloose\b/gi, message: 'Check "loose" vs "lose." "Loose" means not tight; "lose" means to misplace.', fix: '"Lose" = misplace/fail. "Loose" = not tight.', suggestion: 'lose' },
+  { pattern: /\baccept\b.*\bexcept\b|\bexcept\b.*\baccept\b/gi, message: 'Check "accept" vs "except." "Accept" means to receive; "except" means excluding.', fix: '"Accept" = receive/agree. "Except" = excluding.', suggestion: '' },
+];
+
+const WEAK_WORDS = [
+  'very', 'really', 'just', 'basically', 'actually', 'literally', 'things', 'stuff',
+  'somewhat', 'quite', 'rather', 'perhaps', 'somehow',
+];
+
+const HEDGING_PHRASES: Array<{ pattern: RegExp; description: string }> = [
+  { pattern: /\bI think that\b/gi, description: '"I think that" weakens your point. State it directly.' },
+  { pattern: /\bI feel like\b/gi, description: '"I feel like" is informal. State your position directly.' },
+  { pattern: /\bI believe that\b(?!.*\b(because|since|as|evidence|research)\b)/gi, description: '"I believe that" without evidence reads as unsupported opinion.' },
+  { pattern: /\bin my opinion\b/gi, description: '"In my opinion" is redundant — the reader knows it\'s your writing.' },
+  { pattern: /\bit seems like\b/gi, description: '"It seems like" is vague. Be specific about what you observe.' },
+  { pattern: /\bit appears that\b/gi, description: '"It appears that" hedges. State what the evidence shows.' },
+  { pattern: /\bmight possibly\b/gi, description: '"Might possibly" is a double hedge. Use one or the other.' },
+  { pattern: /\bsort of\b/gi, description: '"Sort of" is vague and informal for academic writing.' },
+  { pattern: /\bkind of\b/gi, description: '"Kind of" is vague and informal for academic writing.' },
+  { pattern: /\bneedless to say\b/gi, description: 'If it\'s needless to say, don\'t say it. Just state the point.' },
+];
+
+const CLICHES: string[] = [
+  'at the end of the day', 'it goes without saying', 'in today\'s society',
+  'since the dawn of time', 'throughout history', 'in this day and age',
+  'each and every', 'first and foremost', 'last but not least',
+  'few and far between', 'think outside the box', 'at the end of the day',
+  'when all is said and done', 'the bottom line is', 'it is what it is',
+  'only time will tell', 'better late than never', 'easier said than done',
+  'actions speak louder than words', 'a double-edged sword',
+  'tip of the iceberg', 'food for thought', 'a level playing field',
+  'the fact of the matter is', 'at this point in time', 'moving forward',
+  'paradigm shift', 'low-hanging fruit', 'game changer', 'deep dive',
+  'circle back', 'push the envelope', 'raise the bar',
+];
 
 const PASSIVE_PATTERNS = [
   /\b(is|are|was|were|been|being)\s+(\w+ed)\b/gi,
   /\b(is|are|was|were|been|being)\s+(\w+en)\b/gi,
+  /\b(has|have|had)\s+been\s+(\w+ed)\b/gi,
+  /\b(could|would|should|might|may|can|will)\s+be\s+(\w+ed)\b/gi,
+  /\b(could|would|should|might|may|can|will)\s+be\s+(\w+en)\b/gi,
+  /\b(has|have|had)\s+been\s+(\w+en)\b/gi,
 ];
 
 const TRANSITION_WORDS = [
@@ -142,6 +251,80 @@ function countParagraphs(text: string): number {
 function calculateReadingTime(wordCount: number): number {
   // Average reading speed: 200 words per minute
   return Math.max(1, Math.ceil(wordCount / 200));
+}
+
+function countSyllables(word: string): number {
+  word = word.toLowerCase().replace(/[^a-z]/g, '');
+  if (word.length <= 2) return 1;
+  // Remove trailing silent 'e'
+  word = word.replace(/e$/, '');
+  // Count vowel groups
+  const vowelGroups = word.match(/[aeiouy]+/g);
+  const count = vowelGroups ? vowelGroups.length : 1;
+  return Math.max(1, count);
+}
+
+function countTotalSyllables(text: string): number {
+  const words = text.match(/\b[a-zA-Z]+\b/g) || [];
+  return words.reduce((total, word) => total + countSyllables(word), 0);
+}
+
+export interface ReadabilityResult {
+  /** Flesch Reading Ease score (0-100, higher = easier) */
+  fleschReadingEase: number;
+  /** Flesch-Kincaid Grade Level (US grade level) */
+  gradeLevel: number;
+  /** Human-readable label */
+  label: string;
+  /** Short description of the audience */
+  audience: string;
+}
+
+function calculateReadability(text: string): ReadabilityResult {
+  const wordCount = countWords(text);
+  const sentenceCount = countSentences(text);
+  const syllableCount = countTotalSyllables(text);
+
+  if (wordCount < 10 || sentenceCount === 0) {
+    return { fleschReadingEase: 0, gradeLevel: 0, label: 'Too short', audience: 'Write more to calculate' };
+  }
+
+  const avgWordsPerSentence = wordCount / sentenceCount;
+  const avgSyllablesPerWord = syllableCount / wordCount;
+
+  // Flesch Reading Ease = 206.835 - 1.015 * (words/sentences) - 84.6 * (syllables/words)
+  const fleschReadingEase = Math.max(0, Math.min(100,
+    Math.round(206.835 - 1.015 * avgWordsPerSentence - 84.6 * avgSyllablesPerWord)
+  ));
+
+  // Flesch-Kincaid Grade Level = 0.39 * (words/sentences) + 11.8 * (syllables/words) - 15.59
+  const gradeLevel = Math.max(1, Math.min(18,
+    Math.round((0.39 * avgWordsPerSentence + 11.8 * avgSyllablesPerWord - 15.59) * 10) / 10
+  ));
+
+  let label: string;
+  let audience: string;
+  if (fleschReadingEase >= 80) {
+    label = 'Very Easy';
+    audience = '6th grade or below';
+  } else if (fleschReadingEase >= 70) {
+    label = 'Easy';
+    audience = '7th grade';
+  } else if (fleschReadingEase >= 60) {
+    label = 'Standard';
+    audience = '8th-9th grade';
+  } else if (fleschReadingEase >= 50) {
+    label = 'Moderate';
+    audience = '10th-12th grade';
+  } else if (fleschReadingEase >= 30) {
+    label = 'Difficult';
+    audience = 'College level';
+  } else {
+    label = 'Very Difficult';
+    audience = 'College graduate';
+  }
+
+  return { fleschReadingEase, gradeLevel, label, audience };
 }
 
 function truncateSuggestion(text: string): string {
@@ -271,6 +454,106 @@ function checkPunctuation(text: string): WritingIssue[] {
   return issues;
 }
 
+function checkConfusedWords(text: string): WritingIssue[] {
+  const issues: WritingIssue[] = [];
+  for (const { pattern, message, fix, suggestion } of CONFUSED_WORDS) {
+    const regex = new RegExp(pattern.source, pattern.flags);
+    let match;
+    while ((match = regex.exec(text)) !== null) {
+      issues.push({
+        id: generateId(),
+        category: 'grammar',
+        severity: 'error',
+        title: 'Commonly confused word',
+        description: message,
+        howToFix: fix,
+        microSuggestion: suggestion || undefined,
+        startIndex: match.index,
+        endIndex: match.index + match[0].length,
+        excerpt: match[0],
+      });
+    }
+  }
+  return issues;
+}
+
+function checkRunOnSentences(text: string): WritingIssue[] {
+  const issues: WritingIssue[] = [];
+  const sentences = getSentences(text);
+
+  for (const sentence of sentences) {
+    const wordCount = countWords(sentence.text);
+    // Comma splice: two independent clauses joined by just a comma (no conjunction)
+    const commaSplicePattern = /,\s+(?!(and|but|or|nor|for|yet|so|which|who|whom|whose|that|where|when|while|although|because|since|if|unless|until|after|before|however|moreover|furthermore|additionally|consequently|therefore|nevertheless|nonetheless)\b)[A-Z][a-z]/g;
+    let match;
+    while ((match = commaSplicePattern.exec(sentence.text)) !== null) {
+      if (wordCount > 15) {
+        issues.push({
+          id: generateId(),
+          category: 'grammar',
+          severity: 'warning',
+          title: 'Possible run-on sentence',
+          description: 'This may be a comma splice — two independent clauses joined by just a comma.',
+          howToFix: 'Add a conjunction (and, but, so), use a semicolon, or split into two sentences.',
+          microSuggestion: '; or . Instead of ,',
+          startIndex: sentence.start + match.index,
+          endIndex: sentence.start + match.index + match[0].length,
+          excerpt: sentence.text.substring(Math.max(0, match.index - 10), match.index + 20),
+        });
+        break;
+      }
+    }
+  }
+  return issues;
+}
+
+function checkSentenceFragments(text: string): WritingIssue[] {
+  const issues: WritingIssue[] = [];
+  const sentences = getSentences(text);
+
+  for (const sentence of sentences) {
+    const trimmed = sentence.text.trim();
+    const wordCount = countWords(trimmed);
+
+    if (wordCount < 4) continue; // Too short to analyze meaningfully
+
+    // Fragments starting with subordinating conjunctions without a main clause
+    const subordinators = /^(although|because|since|while|if|unless|until|after|before|when|whenever|whereas|even though|even if|in order that|so that|provided that)\b/i;
+    if (subordinators.test(trimmed) && wordCount < 12) {
+      // Check if it has a main clause (contains a comma followed by subject+verb)
+      if (!trimmed.includes(',') || trimmed.split(',').length < 2) {
+        issues.push({
+          id: generateId(),
+          category: 'grammar',
+          severity: 'warning',
+          title: 'Possible sentence fragment',
+          description: 'This starts with a subordinating word and may not be a complete sentence.',
+          howToFix: 'Connect this to the previous or next sentence, or add a main clause.',
+          startIndex: sentence.start,
+          endIndex: sentence.end,
+          excerpt: trimmed.substring(0, 50),
+        });
+      }
+    }
+
+    // Fragments starting with -ing words (participial phrases)
+    if (/^[A-Z][a-z]+ing\b/.test(trimmed) && wordCount < 8 && !trimmed.includes(',')) {
+      issues.push({
+        id: generateId(),
+        category: 'grammar',
+        severity: 'suggestion',
+        title: 'Possible sentence fragment',
+        description: 'This starts with an -ing word and may be an incomplete thought.',
+        howToFix: 'Make sure this is a complete sentence with a subject and verb.',
+        startIndex: sentence.start,
+        endIndex: sentence.end,
+        excerpt: trimmed.substring(0, 50),
+      });
+    }
+  }
+  return issues;
+}
+
 // ============================================================================
 // CLARITY & STYLE CHECKS
 // ============================================================================
@@ -368,8 +651,8 @@ function checkWordRepetition(text: string): WritingIssue[] {
     const current = sentences[i].text.toLowerCase();
     const next = sentences[i + 1].text.toLowerCase();
     
-    const currentWords = current.match(/\b[a-z]{5,}\b/g) || [];
-    const nextWords = next.match(/\b[a-z]{5,}\b/g) || [];
+    const currentWords: string[] = current.match(/\b[a-z]{5,}\b/g) || [];
+    const nextWords: string[] = next.match(/\b[a-z]{5,}\b/g) || [];
     
     for (const word of currentWords) {
       if (nextWords.includes(word) && !['which', 'their', 'there', 'where', 'these', 'those', 'about'].includes(word)) {
@@ -389,6 +672,138 @@ function checkWordRepetition(text: string): WritingIssue[] {
     }
   }
 
+  return issues;
+}
+
+function checkCliches(text: string): WritingIssue[] {
+  const issues: WritingIssue[] = [];
+  const lower = text.toLowerCase();
+
+  for (const cliche of CLICHES) {
+    let idx = lower.indexOf(cliche);
+    while (idx !== -1) {
+      issues.push({
+        id: generateId(),
+        category: 'clarity',
+        severity: 'suggestion',
+        title: 'Cliche detected',
+        description: `"${cliche}" is an overused phrase that weakens your writing.`,
+        howToFix: 'Replace with specific, original language that says exactly what you mean.',
+        startIndex: idx,
+        endIndex: idx + cliche.length,
+        excerpt: text.substring(idx, idx + cliche.length),
+      });
+      idx = lower.indexOf(cliche, idx + cliche.length);
+    }
+  }
+  return issues;
+}
+
+function checkHedgingLanguage(text: string): WritingIssue[] {
+  const issues: WritingIssue[] = [];
+
+  for (const { pattern, description } of HEDGING_PHRASES) {
+    const regex = new RegExp(pattern.source, pattern.flags);
+    let match;
+    while ((match = regex.exec(text)) !== null) {
+      issues.push({
+        id: generateId(),
+        category: 'clarity',
+        severity: 'suggestion',
+        title: 'Hedging language',
+        description,
+        howToFix: 'State your point directly. Let evidence support your claim.',
+        startIndex: match.index,
+        endIndex: match.index + match[0].length,
+        excerpt: match[0],
+      });
+    }
+  }
+  return issues;
+}
+
+function checkSentenceVariety(text: string): WritingIssue[] {
+  const issues: WritingIssue[] = [];
+  const sentences = getSentences(text);
+
+  if (sentences.length < 5) return issues;
+
+  // Check for repeated sentence starts
+  const starts: Record<string, number[]> = {};
+  for (let i = 0; i < sentences.length; i++) {
+    const firstWord = sentences[i].text.trim().split(/\s+/)[0]?.toLowerCase() || '';
+    if (!starts[firstWord]) starts[firstWord] = [];
+    starts[firstWord].push(i);
+  }
+
+  for (const [word, indices] of Object.entries(starts)) {
+    if (indices.length >= 3 && !['the', 'a', 'an'].includes(word)) {
+      issues.push({
+        id: generateId(),
+        category: 'clarity',
+        severity: 'suggestion',
+        title: 'Repetitive sentence starts',
+        description: `${indices.length} sentences start with "${word}." Varying your openings improves flow.`,
+        howToFix: 'Try starting with a different word, a transition, or by rearranging the sentence.',
+        startIndex: sentences[indices[2]].start,
+        endIndex: sentences[indices[2]].end,
+        excerpt: sentences[indices[2]].text.substring(0, 40) + '...',
+      });
+    }
+  }
+
+  // Check for monotonous sentence lengths (all similar)
+  const lengths = sentences.map(s => countWords(s.text));
+  const avgLen = lengths.reduce((a, b) => a + b, 0) / lengths.length;
+  const variance = lengths.reduce((sum, len) => sum + Math.pow(len - avgLen, 2), 0) / lengths.length;
+  const stdDev = Math.sqrt(variance);
+
+  if (stdDev < 3 && sentences.length >= 6) {
+    issues.push({
+      id: generateId(),
+      category: 'clarity',
+      severity: 'suggestion',
+      title: 'Monotonous sentence rhythm',
+      description: `Your sentences average ${Math.round(avgLen)} words with little variation. Mix short and long sentences for better rhythm.`,
+      howToFix: 'Alternate between short punchy sentences and longer detailed ones.',
+      startIndex: sentences[0].start,
+      endIndex: sentences[Math.min(2, sentences.length - 1)].end,
+      excerpt: 'Overall pattern...',
+    });
+  }
+
+  return issues;
+}
+
+function checkVagueOpeners(text: string): WritingIssue[] {
+  const issues: WritingIssue[] = [];
+  const sentences = getSentences(text);
+
+  const vaguePatterns: Array<{ pattern: RegExp; desc: string }> = [
+    { pattern: /^There (is|are|was|were) /i, desc: '"There is/are" openings are weak. Lead with the actual subject.' },
+    { pattern: /^It is (important|clear|obvious|interesting|worth noting|necessary|evident) /i, desc: 'This opener buries the real subject. State it directly.' },
+    { pattern: /^This is /i, desc: '"This is" without a clear referent can be vague.' },
+  ];
+
+  for (const sentence of sentences) {
+    const trimmed = sentence.text.trim();
+    for (const { pattern, desc } of vaguePatterns) {
+      if (pattern.test(trimmed)) {
+        issues.push({
+          id: generateId(),
+          category: 'clarity',
+          severity: 'suggestion',
+          title: 'Weak sentence opener',
+          description: desc,
+          howToFix: 'Rewrite to lead with the specific subject or action.',
+          startIndex: sentence.start,
+          endIndex: Math.min(sentence.start + 30, sentence.end),
+          excerpt: trimmed.substring(0, 40),
+        });
+        break;
+      }
+    }
+  }
   return issues;
 }
 
@@ -517,6 +932,39 @@ function checkIntroConclusion(text: string): WritingIssue[] {
   return issues;
 }
 
+function checkRepeatedParagraphOpeners(text: string): WritingIssue[] {
+  const issues: WritingIssue[] = [];
+  const paragraphs = getParagraphs(text);
+
+  if (paragraphs.length < 3) return issues;
+
+  const openers: Record<string, number> = {};
+  for (const para of paragraphs) {
+    const firstWords = para.text.trim().split(/\s+/).slice(0, 3).join(' ').toLowerCase();
+    openers[firstWords] = (openers[firstWords] || 0) + 1;
+  }
+
+  for (const [opener, count] of Object.entries(openers)) {
+    if (count >= 2) {
+      const matchingPara = paragraphs.find(p => p.text.trim().toLowerCase().startsWith(opener));
+      if (matchingPara) {
+        issues.push({
+          id: generateId(),
+          category: 'structure',
+          severity: 'suggestion',
+          title: 'Repeated paragraph opening',
+          description: `${count} paragraphs start with "${opener}..." Varying openings improves flow.`,
+          howToFix: 'Rephrase one of the paragraph openings to add variety.',
+          startIndex: matchingPara.start,
+          endIndex: Math.min(matchingPara.start + 40, matchingPara.end),
+          excerpt: matchingPara.text.substring(0, 40) + '...',
+        });
+      }
+    }
+  }
+  return issues;
+}
+
 // ============================================================================
 // ARGUMENT & EVIDENCE CHECKS
 // ============================================================================
@@ -525,29 +973,41 @@ function checkUnsupportedClaims(text: string): WritingIssue[] {
   const issues: WritingIssue[] = [];
   const sentences = getSentences(text);
 
-  const claimIndicators = ['should', 'must', 'always', 'never', 'all', 'none', 'best', 'worst', 'clearly', 'obviously'];
-  const evidenceIndicators = ['because', 'since', 'for example', 'for instance', 'according to', 'research shows', 'studies', 'evidence'];
+  const claimIndicators = [
+    'should', 'must', 'always', 'never', 'all', 'none', 'best', 'worst',
+    'obviously', 'need to', 'have to', 'essential', 'crucial', 'vital',
+    'undeniable', 'indisputable', 'without doubt', 'unquestionable',
+    'every', 'no one', 'everyone', 'impossible', 'only way',
+  ];
+  const evidenceIndicators = [
+    'because', 'since', 'for example', 'for instance', 'according to',
+    'research shows', 'studies', 'evidence', 'data suggests', 'found that',
+    'demonstrates', 'indicates', 'survey', 'report', 'analysis',
+    'statistics', 'percent', '%', 'cited', 'published', 'journal',
+    'experiment', 'as shown', 'proves', 'confirmed',
+  ];
 
   for (let i = 0; i < sentences.length; i++) {
     const sentence = sentences[i].text.toLowerCase();
     const hasClaim = claimIndicators.some(c => sentence.includes(c));
-    
-    if (hasClaim) {
-      // Check if this sentence or the next has evidence
-      const hasEvidence = evidenceIndicators.some(e => sentence.includes(e));
-      const nextHasEvidence = sentences[i + 1] && evidenceIndicators.some(e => sentences[i + 1].text.toLowerCase().includes(e));
 
-      if (!hasEvidence && !nextHasEvidence) {
+    if (hasClaim) {
+      // Check this sentence and the next 2 for evidence
+      const hasEvidence = evidenceIndicators.some(e => sentence.includes(e));
+      const next1HasEvidence = sentences[i + 1] && evidenceIndicators.some(e => sentences[i + 1].text.toLowerCase().includes(e));
+      const next2HasEvidence = sentences[i + 2] && evidenceIndicators.some(e => sentences[i + 2].text.toLowerCase().includes(e));
+
+      if (!hasEvidence && !next1HasEvidence && !next2HasEvidence) {
         issues.push({
           id: generateId(),
           category: 'argument',
           severity: 'warning',
           title: 'Claim may need support',
-          description: 'This sentence makes a strong claim. Consider adding evidence or reasoning.',
-          howToFix: 'Follow this claim with "because...", an example, or a citation.',
+          description: 'This sentence makes a strong claim but no supporting evidence follows within the next two sentences.',
+          howToFix: 'Follow this claim with "because...", an example, a statistic, or a citation.',
           startIndex: sentences[i].start,
           endIndex: sentences[i].end,
-          excerpt: sentences[i].text.substring(0, 50) + '...',
+          excerpt: sentences[i].text.substring(0, 50) + (sentences[i].text.length > 50 ? '...' : ''),
         });
       }
     }
@@ -560,7 +1020,13 @@ function checkQuestionableStatements(text: string): WritingIssue[] {
   const issues: WritingIssue[] = [];
   const sentences = getSentences(text);
 
-  const absolutes = ['everyone knows', 'it is obvious', 'clearly', 'undoubtedly', 'without question', 'no one can deny'];
+  const absolutes = [
+    'everyone knows', 'it is obvious', 'clearly', 'undoubtedly', 'without question',
+    'no one can deny', 'it is well known', 'it is a fact that', 'there is no doubt',
+    'any reasonable person', 'common sense tells us', 'the truth is',
+    'it stands to reason', 'nobody disagrees', 'we all know',
+    'as everyone knows', 'of course', 'naturally', 'goes without saying',
+  ];
 
   for (const sentence of sentences) {
     const lower = sentence.text.toLowerCase();
@@ -575,10 +1041,45 @@ function checkQuestionableStatements(text: string): WritingIssue[] {
           howToFix: 'Remove the absolute phrase and let your evidence speak for itself.',
           startIndex: sentence.start,
           endIndex: sentence.end,
-          excerpt: sentence.text.substring(0, 50) + '...',
+          excerpt: sentence.text.substring(0, 50) + (sentence.text.length > 50 ? '...' : ''),
         });
         break;
       }
+    }
+  }
+
+  return issues;
+}
+
+function checkPersonalOpinionOveruse(text: string): WritingIssue[] {
+  const issues: WritingIssue[] = [];
+  const sentences = getSentences(text);
+
+  const opinionPhrases = [/\bI think\b/gi, /\bI feel\b/gi, /\bI believe\b/gi, /\bin my opinion\b/gi, /\bpersonally\b/gi];
+  let totalOpinionCount = 0;
+
+  for (const pattern of opinionPhrases) {
+    const regex = new RegExp(pattern.source, pattern.flags);
+    let match;
+    while ((match = regex.exec(text)) !== null) {
+      totalOpinionCount++;
+    }
+  }
+
+  if (totalOpinionCount >= 4 && sentences.length > 0) {
+    const ratio = totalOpinionCount / sentences.length;
+    if (ratio > 0.15) {
+      issues.push({
+        id: generateId(),
+        category: 'argument',
+        severity: 'warning',
+        title: 'Over-reliance on personal opinion',
+        description: `You use "I think/believe/feel" ${totalOpinionCount} times. In academic writing, let evidence support your claims instead.`,
+        howToFix: 'Replace opinion phrases with evidence-backed statements. Instead of "I think X," write "Evidence shows X."',
+        startIndex: 0,
+        endIndex: Math.min(50, text.length),
+        excerpt: 'Overall pattern',
+      });
     }
   }
 
@@ -626,6 +1127,16 @@ function generateChecklist(text: string, issues: WritingIssue[]): ChecklistItem[
   ).length;
   const evidenceRatio = sentences.length > 0 ? sentencesWithEvidence / sentences.length : 0;
 
+  // Sentence variety check
+  const lengths = sentences.map(s => countWords(s.text));
+  const avgLen = lengths.length > 0 ? lengths.reduce((a, b) => a + b, 0) / lengths.length : 0;
+  const sentVariance = lengths.length > 0 ? lengths.reduce((sum, len) => sum + Math.pow(len - avgLen, 2), 0) / lengths.length : 0;
+  const hasSentenceVariety = Math.sqrt(sentVariance) >= 4;
+
+  // Readability check
+  const readability = calculateReadability(text);
+  const readabilityOk = readability.fleschReadingEase >= 30 && readability.fleschReadingEase <= 80;
+
   return [
     {
       id: 'thesis',
@@ -662,6 +1173,18 @@ function generateChecklist(text: string, issues: WritingIssue[]): ChecklistItem[
       label: 'Smooth transitions between ideas',
       status: missingTransitions === 0 ? 'pass' : missingTransitions <= 2 ? 'warning' : 'fail',
       detail: missingTransitions === 0 ? 'Transitions are smooth' : `${missingTransitions} paragraph${missingTransitions > 1 ? 's' : ''} could use transitions`,
+    },
+    {
+      id: 'variety',
+      label: 'Sentence variety and rhythm',
+      status: hasSentenceVariety ? 'pass' : sentences.length < 5 ? 'warning' : 'fail',
+      detail: hasSentenceVariety ? 'Good mix of sentence lengths' : 'Mix short and long sentences for better rhythm',
+    },
+    {
+      id: 'readability',
+      label: 'Readability appropriate for audience',
+      status: readability.fleschReadingEase === 0 ? 'warning' : readabilityOk ? 'pass' : 'warning',
+      detail: readability.fleschReadingEase === 0 ? 'Write more to assess' : `Grade ${readability.gradeLevel} (${readability.label})`,
     },
   ];
 }
@@ -703,6 +1226,24 @@ function generatePriorities(text: string, issues: WritingIssue[]): { fixFirst: P
     fixFirst.push({ label: 'Weak or missing conclusion', category: 'structure' });
   }
 
+  // Confused words (critical - these are real errors)
+  const confusedWords = issues.filter(i => i.title === 'Commonly confused word').length;
+  if (confusedWords > 0) {
+    fixFirst.push({ label: 'Confused words (their/there, your/you\'re, etc.)', count: confusedWords, category: 'grammar' });
+  }
+
+  // Run-on sentences
+  const runOns = issues.filter(i => i.title.includes('run-on')).length;
+  if (runOns > 0) {
+    fixFirst.push({ label: 'Run-on sentences', count: runOns, category: 'grammar' });
+  }
+
+  // Personal opinion overuse
+  const opinionOveruse = issues.filter(i => i.title.includes('Over-reliance')).length;
+  if (opinionOveruse > 0) {
+    fixFirst.push({ label: 'Too much "I think/believe/feel"', category: 'argument' });
+  }
+
   // Polish items (less critical)
   const passiveVoice = issues.filter(i => i.title.includes('Passive voice')).length;
   if (passiveVoice > 0) {
@@ -724,9 +1265,24 @@ function generatePriorities(text: string, issues: WritingIssue[]): { fixFirst: P
     thenPolish.push({ label: 'Filler words', count: weakWords, category: 'clarity' });
   }
 
+  const cliches = issues.filter(i => i.title.includes('Cliche')).length;
+  if (cliches > 0) {
+    thenPolish.push({ label: 'Cliches', count: cliches, category: 'clarity' });
+  }
+
+  const hedging = issues.filter(i => i.title.includes('Hedging')).length;
+  if (hedging > 0) {
+    thenPolish.push({ label: 'Hedging language', count: hedging, category: 'clarity' });
+  }
+
   const transitions = issues.filter(i => i.title.includes('transition')).length;
   if (transitions > 0) {
     thenPolish.push({ label: 'Missing transitions', count: transitions, category: 'structure' });
+  }
+
+  const vagueOpeners = issues.filter(i => i.title.includes('Weak sentence opener')).length;
+  if (vagueOpeners > 0) {
+    thenPolish.push({ label: 'Weak sentence openers', count: vagueOpeners, category: 'clarity' });
   }
 
   return { fixFirst, thenPolish };
@@ -742,20 +1298,63 @@ function calculateQualityScore(text: string, issues: WritingIssue[]): number {
 
   let score = 100;
 
-  // Deduct for issues based on severity
-  for (const issue of issues) {
-    if (issue.severity === 'error') score -= 5;
-    else if (issue.severity === 'warning') score -= 2;
-    else score -= 1;
+  // Deduct for issues based on severity (diminishing returns to avoid crushing score)
+  const errors = issues.filter(i => i.severity === 'error').length;
+  const warnings = issues.filter(i => i.severity === 'warning').length;
+  const suggestions = issues.filter(i => i.severity === 'suggestion').length;
+
+  score -= Math.min(30, errors * 4);
+  score -= Math.min(20, warnings * 2);
+  score -= Math.min(15, suggestions * 1);
+
+  // POSITIVE SIGNALS — reward good writing practices
+  const paragraphs = getParagraphs(text);
+  const sentences = getSentences(text);
+  const paragraphCount = paragraphs.length;
+
+  // Good structure: 3-7 paragraphs
+  if (paragraphCount >= 3 && paragraphCount <= 7) score += 3;
+
+  // Adequate length
+  if (wordCount >= 300) score += 2;
+  if (wordCount >= 500) score += 2;
+
+  // Sentence variety (good standard deviation in sentence lengths)
+  if (sentences.length >= 4) {
+    const lengths = sentences.map(s => countWords(s.text));
+    const avg = lengths.reduce((a, b) => a + b, 0) / lengths.length;
+    const variance = lengths.reduce((sum, len) => sum + Math.pow(len - avg, 2), 0) / lengths.length;
+    if (Math.sqrt(variance) >= 4) score += 3; // Good variety
   }
 
-  // Bonus for good structure
-  const paragraphCount = countParagraphs(text);
-  if (paragraphCount >= 3 && paragraphCount <= 7) score += 5;
+  // Uses transitions
+  const transitionCount = TRANSITION_WORDS.filter(t =>
+    text.toLowerCase().includes(t)
+  ).length;
+  if (transitionCount >= 2) score += 2;
+  if (transitionCount >= 4) score += 2;
 
-  // Bonus for adequate length
-  if (wordCount >= 300) score += 5;
-  if (wordCount >= 500) score += 5;
+  // Uses evidence language
+  const evidenceWords = ['because', 'for example', 'according to', 'research', 'evidence', 'study', 'data', 'shows', 'demonstrates'];
+  const evidenceCount = evidenceWords.filter(e => text.toLowerCase().includes(e)).length;
+  if (evidenceCount >= 2) score += 2;
+  if (evidenceCount >= 4) score += 2;
+
+  // Has thesis-like language in intro
+  if (paragraphs.length > 0) {
+    const intro = paragraphs[0].text.toLowerCase();
+    if (['argue', 'claim', 'believe', 'will discuss', 'this essay', 'this paper', 'thesis', 'contend', 'position'].some(t => intro.includes(t))) {
+      score += 3;
+    }
+  }
+
+  // Has conclusion signals
+  if (paragraphs.length >= 3) {
+    const conclusion = paragraphs[paragraphs.length - 1].text.toLowerCase();
+    if (['in conclusion', 'to summarize', 'in summary', 'therefore', 'thus', 'overall'].some(t => conclusion.includes(t))) {
+      score += 2;
+    }
+  }
 
   return Math.max(0, Math.min(100, score));
 }
@@ -883,6 +1482,7 @@ export async function analyzeEssayAsync(text: string): Promise<AnalysisResult> {
       sentenceCount: 0,
       paragraphCount: 0,
       readingTimeMinutes: 0,
+      readability: { fleschReadingEase: 0, gradeLevel: 0, label: 'Too short', audience: 'Write more to calculate' },
       issues: [],
       checklist: generateChecklist('', []),
       fixFirst: [],
@@ -904,21 +1504,33 @@ export async function analyzeEssayAsync(text: string): Promise<AnalysisResult> {
     grammarIssues = [
       ...checkSpelling(text),
       ...checkPunctuation(text),
+      ...checkConfusedWords(text),
+      ...checkRunOnSentences(text),
+      ...checkSentenceFragments(text),
     ];
   }
 
   // Always run our heuristic checks for non-grammar categories
   const issues: WritingIssue[] = [
     ...grammarIssues,
+    // Clarity
     ...checkSentenceLength(text),
     ...checkPassiveVoice(text),
     ...checkWeakWords(text),
     ...checkWordRepetition(text),
+    ...checkCliches(text),
+    ...checkHedgingLanguage(text),
+    ...checkSentenceVariety(text),
+    ...checkVagueOpeners(text),
+    // Structure
     ...checkParagraphLength(text),
     ...checkTransitions(text),
     ...checkIntroConclusion(text),
+    ...checkRepeatedParagraphOpeners(text),
+    // Argument
     ...checkUnsupportedClaims(text),
     ...checkQuestionableStatements(text),
+    ...checkPersonalOpinionOveruse(text),
   ];
 
   // GUARDRAIL: Ensure no suggestion is too long
@@ -953,6 +1565,7 @@ export async function analyzeEssayAsync(text: string): Promise<AnalysisResult> {
     sentenceCount,
     paragraphCount,
     readingTimeMinutes: calculateReadingTime(wordCount),
+    readability: calculateReadability(text),
     issues,
     checklist: generateChecklist(text, issues),
     fixFirst,
@@ -972,6 +1585,7 @@ export function analyzeEssay(text: string): AnalysisResult {
       sentenceCount: 0,
       paragraphCount: 0,
       readingTimeMinutes: 0,
+      readability: { fleschReadingEase: 0, gradeLevel: 0, label: 'Too short', audience: 'Write more to calculate' },
       issues: [],
       checklist: generateChecklist('', []),
       fixFirst: [],
@@ -982,17 +1596,30 @@ export function analyzeEssay(text: string): AnalysisResult {
 
   // Collect all issues
   const issues: WritingIssue[] = [
+    // Grammar
     ...checkSpelling(text),
     ...checkPunctuation(text),
+    ...checkConfusedWords(text),
+    ...checkRunOnSentences(text),
+    ...checkSentenceFragments(text),
+    // Clarity
     ...checkSentenceLength(text),
     ...checkPassiveVoice(text),
     ...checkWeakWords(text),
     ...checkWordRepetition(text),
+    ...checkCliches(text),
+    ...checkHedgingLanguage(text),
+    ...checkSentenceVariety(text),
+    ...checkVagueOpeners(text),
+    // Structure
     ...checkParagraphLength(text),
     ...checkTransitions(text),
     ...checkIntroConclusion(text),
+    ...checkRepeatedParagraphOpeners(text),
+    // Argument
     ...checkUnsupportedClaims(text),
     ...checkQuestionableStatements(text),
+    ...checkPersonalOpinionOveruse(text),
   ];
 
   // GUARDRAIL: Ensure no suggestion is too long
@@ -1027,6 +1654,7 @@ export function analyzeEssay(text: string): AnalysisResult {
     sentenceCount,
     paragraphCount,
     readingTimeMinutes: calculateReadingTime(wordCount),
+    readability: calculateReadability(text),
     issues,
     checklist: generateChecklist(text, issues),
     fixFirst,
@@ -1084,45 +1712,30 @@ export function simplifySentence(text: string): SimplifyResult {
   let simplified = original;
 
   // 1. Remove filler words/phrases
-  const fillerPatterns: Array<{ pattern: RegExp; label: string }> = [
-    { pattern: /\b(very|really|extremely|incredibly)\s+/gi, label: 'Removed intensifier' },
-    { pattern: /\b(just|simply|merely)\s+/gi, label: 'Removed filler' },
-    { pattern: /\b(basically|essentially|fundamentally)\s+/gi, label: 'Removed filler' },
-    { pattern: /\b(actually|literally|virtually)\s+/gi, label: 'Removed filler' },
-    { pattern: /\b(in order to)\b/gi, label: 'Shortened "in order to" → "to"' },
-    { pattern: /\b(due to the fact that)\b/gi, label: 'Shortened "due to the fact that" → "because"' },
-    { pattern: /\b(in spite of the fact that)\b/gi, label: 'Shortened phrase → "although"' },
-    { pattern: /\b(at this point in time)\b/gi, label: 'Shortened "at this point in time" → "now"' },
-    { pattern: /\b(for the purpose of)\b/gi, label: 'Shortened "for the purpose of" → "to"' },
-    { pattern: /\b(in the event that)\b/gi, label: 'Shortened "in the event that" → "if"' },
-    { pattern: /\b(it is important to note that)\s*/gi, label: 'Removed throat-clearing' },
-    { pattern: /\b(it should be noted that)\s*/gi, label: 'Removed throat-clearing' },
-    { pattern: /\b(it is worth mentioning that)\s*/gi, label: 'Removed throat-clearing' },
-    { pattern: /\b(the fact that)\s+/gi, label: 'Removed "the fact that"' },
+  const fillerReplacements: Array<{ from: RegExp; to: string; label: string }> = [
+    { from: /\b(very|really|extremely|incredibly)\s+/gi, to: '', label: 'Removed intensifier' },
+    { from: /\b(just|simply|merely)\s+/gi, to: '', label: 'Removed filler' },
+    { from: /\b(basically|essentially|fundamentally)\s+/gi, to: '', label: 'Removed filler' },
+    { from: /\b(actually|literally|virtually)\s+/gi, to: '', label: 'Removed filler' },
+    { from: /\bin order to\b/gi, to: 'to', label: 'Shortened "in order to" → "to"' },
+    { from: /\bdue to the fact that\b/gi, to: 'because', label: 'Shortened "due to the fact that" → "because"' },
+    { from: /\bin spite of the fact that\b/gi, to: 'although', label: 'Shortened phrase → "although"' },
+    { from: /\bat this point in time\b/gi, to: 'now', label: 'Shortened "at this point in time" → "now"' },
+    { from: /\bfor the purpose of\b/gi, to: 'to', label: 'Shortened "for the purpose of" → "to"' },
+    { from: /\bin the event that\b/gi, to: 'if', label: 'Shortened "in the event that" → "if"' },
+    { from: /\bit is important to note that\s*/gi, to: '', label: 'Removed throat-clearing' },
+    { from: /\bit should be noted that\s*/gi, to: '', label: 'Removed throat-clearing' },
+    { from: /\bit is worth mentioning that\s*/gi, to: '', label: 'Removed throat-clearing' },
+    { from: /\bthe fact that\s+/gi, to: '', label: 'Removed "the fact that"' },
   ];
 
-  for (const { pattern, label } of fillerPatterns) {
-    if (pattern.test(simplified)) {
+  for (const { from, to, label } of fillerReplacements) {
+    const replaced = simplified.replace(from, to);
+    if (replaced !== simplified) {
       changes.push(label);
+      simplified = replaced;
     }
   }
-
-  // Apply replacements
-  simplified = simplified
-    .replace(/\b(very|really|extremely|incredibly)\s+/gi, '')
-    .replace(/\b(just|simply|merely)\s+/gi, '')
-    .replace(/\b(basically|essentially|fundamentally)\s+/gi, '')
-    .replace(/\b(actually|literally|virtually)\s+/gi, '')
-    .replace(/\bin order to\b/gi, 'to')
-    .replace(/\bdue to the fact that\b/gi, 'because')
-    .replace(/\bin spite of the fact that\b/gi, 'although')
-    .replace(/\bat this point in time\b/gi, 'now')
-    .replace(/\bfor the purpose of\b/gi, 'to')
-    .replace(/\bin the event that\b/gi, 'if')
-    .replace(/\bit is important to note that\s*/gi, '')
-    .replace(/\bit should be noted that\s*/gi, '')
-    .replace(/\bit is worth mentioning that\s*/gi, '')
-    .replace(/\bthe fact that\s+/gi, '');
 
   // 2. Fix common wordy constructions
   const wordyReplacements: Array<{ from: RegExp; to: string; label: string }> = [
@@ -1140,9 +1753,10 @@ export function simplifySentence(text: string): SimplifyResult {
   ];
 
   for (const { from, to, label } of wordyReplacements) {
-    if (from.test(simplified)) {
-      simplified = simplified.replace(from, to);
+    const replaced = simplified.replace(from, to);
+    if (replaced !== simplified) {
       changes.push(label);
+      simplified = replaced;
     }
   }
 

@@ -13,8 +13,13 @@ analyzeRouter.post('/', async (req, res) => {
   try {
     const { essayText, selectionStart, selectionEnd }: AnalyzeRequest = req.body;
 
-    if (essayText === undefined) {
-      return res.status(400).json({ error: 'Missing essayText' });
+    if (essayText === undefined || typeof essayText !== 'string') {
+      return res.status(400).json({ error: 'Missing or invalid essayText' });
+    }
+
+    // Guard against excessively large input
+    if (essayText.length > 100_000) {
+      return res.status(413).json({ error: 'Text too long. Maximum 100,000 characters.' });
     }
 
     // If selection provided, return targeted analysis (sync, heuristics only)

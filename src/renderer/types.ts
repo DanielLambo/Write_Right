@@ -29,12 +29,37 @@ export interface PriorityItem {
   category: IssueCategory | 'structure';
 }
 
+export interface ReadabilityResult {
+  fleschReadingEase: number;
+  gradeLevel: number;
+  label: string;
+  audience: string;
+}
+
+export type TemplateCategory = 'academic' | 'professional' | 'creative' | 'general';
+
+export interface WritingTemplate {
+  id: string;
+  name: string;
+  category: TemplateCategory;
+  description: string;
+  icon: string;
+  content: string;
+}
+
+export interface TemplateCategoryInfo {
+  id: TemplateCategory;
+  label: string;
+  icon: string;
+}
+
 export interface AnalysisResult {
   qualityScore: number;
   wordCount: number;
   sentenceCount: number;
   paragraphCount: number;
   readingTimeMinutes: number;
+  readability: ReadabilityResult;
   issues: WritingIssue[];
   checklist: ChecklistItem[];
   fixFirst: PriorityItem[];

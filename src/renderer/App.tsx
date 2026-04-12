@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import InsightsPanel from './components/InsightsPanel';
+import TemplateSelector from './components/TemplateSelector';
 import { AnalysisResult, CoachTab, WritingIssue } from './types';
 
 const API_BASE = 'http://localhost:3051';
@@ -10,6 +11,7 @@ function App() {
   const [analysis, setAnalysis] = useState<AnalysisResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showTemplates, setShowTemplates] = useState(true);
   const [sessionId] = useState(() => `session_${Date.now()}`);
   const editorRef = useRef<HTMLTextAreaElement>(null);
   const analyzeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -78,6 +80,12 @@ function App() {
     }
   }, [essayText]);
 
+  const handleTemplateSelect = useCallback((content: string) => {
+    setEssayText(content);
+    setShowTemplates(false);
+    setTimeout(() => editorRef.current?.focus(), 0);
+  }, []);
+
   const handleIssueClick = (issue: WritingIssue) => {
     if (editorRef.current) {
       editorRef.current.focus();
@@ -86,6 +94,15 @@ function App() {
   };
 
   const wordCount = essayText.split(/\s+/).filter(w => w.length > 0).length;
+  const charCount = essayText.length;
+  const readingTime = Math.max(1, Math.ceil(wordCount / 200));
+
+  const getScoreColor = (score: number) => {
+    if (score >= 80) return 'score-great';
+    if (score >= 60) return 'score-good';
+    if (score >= 40) return 'score-ok';
+    return 'score-poor';
+  };
 
   return (
     <div className="app">
@@ -93,25 +110,55 @@ function App() {
         <h1>Write-Right</h1>
         <div className="header-stats">
           <span>{wordCount} words</span>
-          {analysis && <span className="quality-badge">{analysis.qualityScore} quality</span>}
+          <span className="stat-divider">|</span>
+          <span>{charCount} chars</span>
+          <span className="stat-divider">|</span>
+          <span>{readingTime} min read</span>
+          {analysis && (
+            <>
+              <span className="stat-divider">|</span>
+              <span className={`quality-badge ${getScoreColor(analysis.qualityScore)}`}>
+                {analysis.qualityScore}/100
+              </span>
+            </>
+          )}
+          {analysis && analysis.readability.fleschReadingEase > 0 && (
+            <>
+              <span className="stat-divider">|</span>
+              <span className="readability-badge" title={`Grade ${analysis.readability.gradeLevel} - ${analysis.readability.audience}`}>
+                {analysis.readability.label}
+              </span>
+            </>
+          )}
         </div>
-        <button className="analyze-btn" onClick={() => handleAnalyze()} disabled={loading}>
-          {loading ? 'Analyzing...' : 'Analyze'} <kbd>⌘↵</kbd>
-        </button>
+        <div className="header-actions">
+          {essayText.length > 0 && (
+            <button className="clear-btn" onClick={() => { setEssayText(''); setAnalysis(null); setError(null); setShowTemplates(true); }}>
+              Clear
+            </button>
+          )}
+          <button className="analyze-btn" onClick={() => handleAnalyze()} disabled={loading}>
+            {loading ? 'Analyzing...' : 'Analyze'} <kbd>⌘↵</kbd>
+          </button>
+        </div>
       </header>
 
       <main className="app-content">
         <section className="editor-section">
-          <textarea
-            ref={editorRef}
-            className="editor"
-            value={essayText}
-            onChange={(e) => setEssayText(e.target.value)}
-            placeholder="Start writing your essay here..."
-            spellCheck={false}
-          />
+          {essayText === '' && showTemplates ? (
+            <TemplateSelector onSelect={handleTemplateSelect} />
+          ) : (
+            <textarea
+              ref={editorRef}
+              className="editor"
+              value={essayText}
+              onChange={(e) => setEssayText(e.target.value)}
+              placeholder="Start writing your essay here..."
+              spellCheck={false}
+            />
+          )}
         </section>
-        
+
         <aside className="insights-section">
           <InsightsPanel
             activeTab={activeTab}
