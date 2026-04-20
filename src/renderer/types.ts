@@ -53,6 +53,21 @@ export interface TemplateCategoryInfo {
   icon: string;
 }
 
+export type AppMode = 'DRAFTING' | 'AUDITING';
+
+export interface ReverseOutlineParagraph {
+  index: number;
+  firstSentence: string;
+  lastSentence: string;
+  sentenceCount: number;
+  isRisk: boolean;
+}
+
+export interface ReverseOutlineResult {
+  paragraphs: ReverseOutlineParagraph[];
+  totalParagraphs: number;
+}
+
 export interface AnalysisResult {
   qualityScore: number;
   wordCount: number;

@@ -327,6 +327,53 @@ function calculateReadability(text: string): ReadabilityResult {
   return { fleschReadingEase, gradeLevel, label, audience };
 }
 
+/**
+ * Quote Guard: strips quoted text so analysis doesn't flag content inside quotes.
+ * Preserves character positions by replacing quoted content with spaces.
+ */
+export function stripQuotedText(text: string): string {
+  // Replace text inside curly/straight double quotes and single quotes with spaces
+  return text
+    .replace(/\u201C[^\u201D]*\u201D/g, match => ' '.repeat(match.length))
+    .replace(/\u2018[^\u2019]*\u2019/g, match => ' '.repeat(match.length))
+    .replace(/"[^"]*"/g, match => ' '.repeat(match.length));
+}
+
+/**
+ * Lightweight suffix stemmer for English words.
+ * Strips common suffixes to get a rough stem for repetition detection.
+ */
+export function stemWord(word: string): string {
+  word = word.toLowerCase();
+  if (word.length < 4) return word;
+  // Order matters: check longer suffixes first
+  const suffixes = [
+    'ational', 'tional', 'iveness', 'fulness', 'ousness', 'ments',
+    'ation', 'ness', 'ment', 'able', 'ible', 'ally', 'ence', 'ance',
+    'ized', 'ised', 'ting', 'ing', 'ful', 'ous', 'ive', 'ion',
+    'ity', 'ies', 'ely', 'ent', 'ant', 'ers', 'est', 'ial',
+    'ise', 'ize', 'ual', 'ted', 'sed', 'led',
+    'ed', 'ly', 'er', 'es', 'al', 'en',
+    's',
+  ];
+  for (const suffix of suffixes) {
+    if (word.endsWith(suffix) && word.length - suffix.length >= 3) {
+      let stem = word.slice(0, word.length - suffix.length);
+      // Normalize doubled consonants left after stripping
+      // e.g., "running" → "runn" → "run", "stopped" → "stopp" → "stop"
+      if (stem.length >= 3) {
+        const last = stem[stem.length - 1];
+        const secondLast = stem[stem.length - 2];
+        if (last === secondLast && /[bcdfghjklmnpqrstvwxyz]/.test(last)) {
+          stem = stem.slice(0, -1);
+        }
+      }
+      return stem;
+    }
+  }
+  return word;
+}
+
 function truncateSuggestion(text: string): string {
   const words = text.split(/\s+/);
   if (words.length <= MAX_SUGGESTION_WORDS) return text;
@@ -621,11 +668,12 @@ function checkPassiveVoice(text: string): WritingIssue[] {
 
 function checkWeakWords(text: string): WritingIssue[] {
   const issues: WritingIssue[] = [];
+  const cleanText = stripQuotedText(text);
 
   for (const word of WEAK_WORDS) {
     const regex = new RegExp(`\\b${word}\\b`, 'gi');
     let match;
-    while ((match = regex.exec(text)) !== null) {
+    while ((match = regex.exec(cleanText)) !== null) {
       issues.push({
         id: generateId(),
         category: 'clarity',
@@ -645,29 +693,41 @@ function checkWeakWords(text: string): WritingIssue[] {
 
 function checkWordRepetition(text: string): WritingIssue[] {
   const issues: WritingIssue[] = [];
-  const sentences = getSentences(text);
+  const cleanText = stripQuotedText(text);
+  const sentences = getSentences(cleanText);
+
+  const excludeStems = ['which', 'their', 'there', 'where', 'these', 'those', 'about', 'would', 'could', 'should', 'being', 'every', 'other'].map(stemWord);
 
   for (let i = 0; i < sentences.length - 1; i++) {
     const current = sentences[i].text.toLowerCase();
     const next = sentences[i + 1].text.toLowerCase();
-    
-    const currentWords: string[] = current.match(/\b[a-z]{5,}\b/g) || [];
-    const nextWords: string[] = next.match(/\b[a-z]{5,}\b/g) || [];
-    
-    for (const word of currentWords) {
-      if (nextWords.includes(word) && !['which', 'their', 'there', 'where', 'these', 'those', 'about'].includes(word)) {
+
+    const currentWords: string[] = current.match(/\b[a-z]{4,}\b/g) || [];
+    const nextWords: string[] = next.match(/\b[a-z]{4,}\b/g) || [];
+
+    const currentStems = currentWords.map(stemWord);
+    const nextStems = nextWords.map(stemWord);
+
+    for (let j = 0; j < currentStems.length; j++) {
+      const stem = currentStems[j];
+      if (stem.length < 3) continue;
+      const matchIdx = nextStems.indexOf(stem);
+      if (matchIdx !== -1 && !excludeStems.includes(stem)) {
+        const originalWord = currentWords[j];
+        const matchedWord = nextWords[matchIdx];
+        const display = originalWord === matchedWord ? `"${originalWord}"` : `"${originalWord}" / "${matchedWord}"`;
         issues.push({
           id: generateId(),
           category: 'clarity',
           severity: 'suggestion',
           title: 'Word repetition',
-          description: `"${word}" appears in consecutive sentences.`,
+          description: `${display} (same root) appears in consecutive sentences.`,
           howToFix: 'Consider using a synonym or restructuring to avoid repetition.',
           startIndex: sentences[i + 1].start,
           endIndex: sentences[i + 1].end,
-          excerpt: `...${word}...`,
+          excerpt: `...${originalWord}...${matchedWord}...`,
         });
-        break; // One issue per sentence pair
+        break;
       }
     }
   }
@@ -677,7 +737,7 @@ function checkWordRepetition(text: string): WritingIssue[] {
 
 function checkCliches(text: string): WritingIssue[] {
   const issues: WritingIssue[] = [];
-  const lower = text.toLowerCase();
+  const lower = stripQuotedText(text).toLowerCase();
 
   for (const cliche of CLICHES) {
     let idx = lower.indexOf(cliche);
@@ -701,11 +761,12 @@ function checkCliches(text: string): WritingIssue[] {
 
 function checkHedgingLanguage(text: string): WritingIssue[] {
   const issues: WritingIssue[] = [];
+  const cleanText = stripQuotedText(text);
 
   for (const { pattern, description } of HEDGING_PHRASES) {
     const regex = new RegExp(pattern.source, pattern.flags);
     let match;
-    while ((match = regex.exec(text)) !== null) {
+    while ((match = regex.exec(cleanText)) !== null) {
       issues.push({
         id: generateId(),
         category: 'clarity',
@@ -777,7 +838,8 @@ function checkSentenceVariety(text: string): WritingIssue[] {
 
 function checkVagueOpeners(text: string): WritingIssue[] {
   const issues: WritingIssue[] = [];
-  const sentences = getSentences(text);
+  const cleanText = stripQuotedText(text);
+  const sentences = getSentences(cleanText);
 
   const vaguePatterns: Array<{ pattern: RegExp; desc: string }> = [
     { pattern: /^There (is|are|was|were) /i, desc: '"There is/are" openings are weak. Lead with the actual subject.' },
@@ -787,8 +849,10 @@ function checkVagueOpeners(text: string): WritingIssue[] {
 
   for (const sentence of sentences) {
     const trimmed = sentence.text.trim();
+    // Positional logic: only check the first 5 words of the sentence
+    const first5Words = trimmed.split(/\s+/).slice(0, 5).join(' ');
     for (const { pattern, desc } of vaguePatterns) {
-      if (pattern.test(trimmed)) {
+      if (pattern.test(first5Words)) {
         issues.push({
           id: generateId(),
           category: 'clarity',
@@ -857,10 +921,10 @@ function checkTransitions(text: string): WritingIssue[] {
 
   if (paragraphs.length < 3) return issues;
 
-  // Check if body paragraphs start with transitions
+  // Check if body paragraphs start with transitions (first 5 words only)
   for (let i = 1; i < paragraphs.length; i++) {
-    const paraStart = paragraphs[i].text.toLowerCase().substring(0, 50);
-    const hasTransition = TRANSITION_WORDS.some(t => paraStart.includes(t.toLowerCase()));
+    const first5Words = paragraphs[i].text.trim().split(/\s+/).slice(0, 5).join(' ').toLowerCase();
+    const hasTransition = TRANSITION_WORDS.some(t => first5Words.includes(t.toLowerCase()));
 
     if (!hasTransition && i < paragraphs.length - 1) {
       issues.push({
@@ -971,7 +1035,7 @@ function checkRepeatedParagraphOpeners(text: string): WritingIssue[] {
 
 function checkUnsupportedClaims(text: string): WritingIssue[] {
   const issues: WritingIssue[] = [];
-  const sentences = getSentences(text);
+  const sentences = getSentences(stripQuotedText(text));
 
   const claimIndicators = [
     'should', 'must', 'always', 'never', 'all', 'none', 'best', 'worst',
@@ -1018,7 +1082,7 @@ function checkUnsupportedClaims(text: string): WritingIssue[] {
 
 function checkQuestionableStatements(text: string): WritingIssue[] {
   const issues: WritingIssue[] = [];
-  const sentences = getSentences(text);
+  const sentences = getSentences(stripQuotedText(text));
 
   const absolutes = [
     'everyone knows', 'it is obvious', 'clearly', 'undoubtedly', 'without question',

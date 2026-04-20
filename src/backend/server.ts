@@ -5,6 +5,7 @@ import { logRouter } from './routes/log';
 import { autosaveRouter } from './routes/autosave';
 import { analyzeRouter } from './routes/analyze';
 import { simplifyRouter } from './routes/simplify';
+import { reverseOutlineRouter } from './routes/reverseOutline';
 
 const app = express();
 const PORT = Number(process.env.BACKEND_PORT ?? 3051);
@@ -34,6 +35,7 @@ app.use('/log', logRouter);
 app.use('/autosave', autosaveRouter);
 app.use('/analyze', analyzeRouter);
 app.use('/simplify', simplifyRouter);
+app.use('/reverse-outline', reverseOutlineRouter);
 
 app.get('/health', (req, res) => {
   res.json({ status: 'ok' });

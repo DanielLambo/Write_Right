@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { analyzeEssay, simplifySentence } from './writingCoach';
+import { analyzeEssay, simplifySentence, stripQuotedText, stemWord } from './writingCoach';
 
 // ============================================================================
 // ANALYSIS ENGINE TESTS
@@ -356,5 +356,107 @@ describe('simplifySentence', () => {
   it('handles empty input', () => {
     const result = simplifySentence('');
     expect(result.simplified).toBe('');
+  });
+});
+
+// ============================================================================
+// QUOTE GUARD TESTS
+// ============================================================================
+
+describe('stripQuotedText', () => {
+  it('strips double-quoted text preserving positions', () => {
+    const result = stripQuotedText('He said "hello world" to her.');
+    expect(result).not.toContain('hello world');
+    expect(result.length).toBe('He said "hello world" to her.'.length);
+  });
+
+  it('strips curly-quoted text', () => {
+    const result = stripQuotedText('She wrote \u201Cgoodbye\u201D in the letter.');
+    expect(result).not.toContain('goodbye');
+  });
+
+  it('does not flag issues inside quotes', () => {
+    // "very" inside quotes should be ignored by weak word check
+    const text = 'The author wrote "I was very happy" in the opening. The rest of the story was well-structured and compelling to read today.';
+    const result = analyzeEssay(text);
+    const weakInQuotes = result.issues.filter(i => i.title === 'Weak or filler word' && i.excerpt === 'very');
+    expect(weakInQuotes.length).toBe(0);
+  });
+});
+
+// ============================================================================
+// STEMMER TESTS
+// ============================================================================
+
+describe('stemWord', () => {
+  it('stems common suffixes', () => {
+    expect(stemWord('development')).toBe(stemWord('develop'));
+    expect(stemWord('developed')).toBe(stemWord('develop'));
+    expect(stemWord('developing')).toBe(stemWord('develop'));
+  });
+
+  it('stems -ness and -ment suffixes', () => {
+    expect(stemWord('darkness')).toBe('dark');
+    expect(stemWord('agreement')).toBe(stemWord('agree'));
+  });
+
+  it('handles double-consonant normalization', () => {
+    expect(stemWord('running')).toBe(stemWord('runs'));
+    expect(stemWord('stopped')).toBe(stemWord('stops'));
+    expect(stemWord('planned')).toBe(stemWord('plans'));
+    expect(stemWord('bigger')).toBe('big');
+    expect(stemWord('sitting')).toBe(stemWord('sits'));
+  });
+
+  it('returns short words unchanged', () => {
+    expect(stemWord('cat')).toBe('cat');
+    expect(stemWord('go')).toBe('go');
+  });
+
+  it('catches repetition via stemming in analysis', () => {
+    const text = 'The development of new technology is exciting. Developers create exciting new tools every single day.';
+    const result = analyzeEssay(text);
+    const repIssues = result.issues.filter(i => i.title === 'Word repetition');
+    // "development" and "developers" share the stem "develop"
+    expect(repIssues.length).toBeGreaterThanOrEqual(1);
+  });
+});
+
+// ============================================================================
+// REVERSE OUTLINE TESTS (route logic inline)
+// ============================================================================
+
+describe('reverse outline logic', () => {
+  function buildReverseOutline(text: string) {
+    const paragraphs = text.split(/\n\s*\n/).map(p => p.trim()).filter(p => p.length > 0);
+    return paragraphs.map((para, i) => {
+      const sentences = para.match(/[^.!?]*[.!?]+/g)?.map(s => s.trim()).filter(s => s.length > 0) || [];
+      const sentenceCount = sentences.length;
+      const firstSentence = sentences[0] || para.substring(0, 80);
+      const lastSentence = sentenceCount > 1 ? sentences[sentenceCount - 1] : firstSentence;
+      return { index: i + 1, firstSentence, lastSentence, sentenceCount, isRisk: sentenceCount <= 1 };
+    });
+  }
+
+  it('extracts first and last sentences', () => {
+    const text = 'First sentence here. Middle stuff. Last sentence here.\n\nAnother paragraph starts. It ends here.';
+    const outline = buildReverseOutline(text);
+    expect(outline).toHaveLength(2);
+    expect(outline[0].firstSentence).toContain('First sentence');
+    expect(outline[0].lastSentence).toContain('Last sentence');
+  });
+
+  it('flags single-sentence paragraphs as risk', () => {
+    const text = 'This is a full paragraph with multiple sentences. It develops an idea.\n\nThis is alone.\n\nAnother full paragraph with details. And more here.';
+    const outline = buildReverseOutline(text);
+    expect(outline[1].isRisk).toBe(true);
+    expect(outline[0].isRisk).toBe(false);
+  });
+
+  it('handles single paragraph', () => {
+    const text = 'Just one paragraph with two sentences. Here is the second.';
+    const outline = buildReverseOutline(text);
+    expect(outline).toHaveLength(1);
+    expect(outline[0].sentenceCount).toBe(2);
   });
 });

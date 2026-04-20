@@ -13,6 +13,77 @@ body {
   color: #1a1a1a;
 }
 
+/* ==============================
+   Mode Toggle: Drafting vs Auditing
+   ============================== */
+
+.mode-drafting .editor-section {
+  background: #F5F5F3;
+  border-right: none;
+}
+
+.mode-drafting .editor {
+  background: #F5F5F3;
+}
+
+.mode-drafting .app-header {
+  background: #F5F5F3;
+  border-bottom-color: #e8e8e5;
+}
+
+.drafting-label {
+  font-style: italic;
+  color: #999;
+}
+
+.mode-toggle {
+  padding: 8px 14px;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.toggle-drafting {
+  background: #F5F5F3;
+  color: #666;
+  border-color: #ddd;
+}
+
+.toggle-drafting:hover {
+  background: #1a1a1a;
+  color: white;
+  border-color: #1a1a1a;
+}
+
+.toggle-auditing {
+  background: #dbeafe;
+  color: #1e40af;
+  border-color: #93c5fd;
+}
+
+.toggle-auditing:hover {
+  background: #F5F5F3;
+  color: #666;
+  border-color: #ddd;
+}
+
+.editor-zen {
+  border-right: none;
+}
+
+/* Slide-in animation for insights panel */
+@keyframes slideInRight {
+  from { transform: translateX(100%); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+
+.insights-slide-in {
+  animation: slideInRight 0.3s ease-out;
+}
+
 .app {
   display: flex;
   flex-direction: column;
@@ -789,6 +860,238 @@ body {
 .template-selector::-webkit-scrollbar-thumb {
   background: #ddd;
   border-radius: 3px;
+}
+
+/* ==============================
+   Sentence Rhythm Sparkline
+   ============================== */
+
+.sentence-rhythm {
+  background: white;
+  border-radius: 8px;
+  padding: 14px;
+  border: 1px solid #e5e5e5;
+}
+
+.rhythm-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.rhythm-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #333;
+}
+
+.rhythm-count {
+  font-size: 11px;
+  color: #999;
+}
+
+.rhythm-chart {
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 64px;
+  padding: 2px 0;
+}
+
+.rhythm-bar-wrap {
+  flex: 1;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  cursor: pointer;
+  min-width: 3px;
+  height: 100%;
+  transition: opacity 0.1s;
+}
+
+.rhythm-bar-wrap:hover .rhythm-bar,
+.rhythm-bar-wrap.hovered .rhythm-bar {
+  opacity: 1;
+  outline: 1px solid #1a1a1a;
+}
+
+.rhythm-bar {
+  width: 100%;
+  border-radius: 2px 2px 0 0;
+  opacity: 0.75;
+  transition: opacity 0.1s, outline 0.1s;
+  min-height: 4px;
+}
+
+.rhythm-tooltip {
+  margin-top: 8px;
+  padding: 8px;
+  background: #f9fafb;
+  border-radius: 6px;
+  font-size: 12px;
+  line-height: 1.4;
+  color: #444;
+}
+
+.rhythm-tooltip strong {
+  display: block;
+  margin-bottom: 2px;
+  color: #1a1a1a;
+}
+
+.rhythm-legend {
+  display: flex;
+  gap: 10px;
+  margin-top: 8px;
+  justify-content: center;
+}
+
+.rhythm-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  color: #666;
+}
+
+.rhythm-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  display: inline-block;
+}
+
+/* ==============================
+   Structural Map (Reverse Outline)
+   ============================== */
+
+.structural-map {
+  margin-bottom: 16px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid #e5e5e5;
+}
+
+.structural-map h3 {
+  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.structural-map-subtitle {
+  font-size: 11px;
+  color: #666;
+  margin-bottom: 12px;
+}
+
+.structural-map-list {
+  list-style: none;
+}
+
+.structural-map-item {
+  background: white;
+  border-radius: 6px;
+  padding: 10px 12px;
+  margin-bottom: 8px;
+  border: 1px solid #e5e5e5;
+  border-left: 3px solid #6366f1;
+}
+
+.structural-map-item.risk {
+  border-left-color: #ef4444;
+  background: #fef2f2;
+}
+
+.structural-map-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.structural-map-index {
+  font-weight: 700;
+  font-size: 12px;
+  color: #6366f1;
+  background: #eef2ff;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.structural-map-item.risk .structural-map-index {
+  color: #ef4444;
+  background: #fee2e2;
+}
+
+.structural-map-count {
+  font-size: 11px;
+  color: #999;
+}
+
+.structural-map-risk {
+  font-size: 10px;
+  font-weight: 600;
+  color: #ef4444;
+  background: #fee2e2;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.structural-map-first {
+  font-size: 12px;
+  color: #1a1a1a;
+  line-height: 1.4;
+  margin-bottom: 4px;
+}
+
+.structural-map-last {
+  font-size: 12px;
+  color: #666;
+  line-height: 1.4;
+  font-style: italic;
+  padding-left: 8px;
+  border-left: 2px solid #e5e5e5;
+}
+
+/* ==============================
+   Integrity Warning
+   ============================== */
+
+.integrity-warning {
+  background: #fef2f2;
+  border: 1px solid #fca5a5;
+  border-radius: 8px;
+  padding: 14px;
+  text-align: center;
+}
+
+.integrity-warning p {
+  font-size: 13px;
+  color: #991b1b;
+  line-height: 1.5;
+}
+
+.integrity-warning p:first-child {
+  margin-bottom: 4px;
+}
+
+.fast-typist-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 12px;
+  font-size: 12px;
+  color: #666;
+  cursor: pointer;
+  justify-content: center;
+}
+
+.fast-typist-toggle input {
+  cursor: pointer;
+}
+
+.fast-typist-toggle span {
+  user-select: none;
 }
 
 /* Scrollbar */

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import InsightsPanel from './components/InsightsPanel';
 import TemplateSelector from './components/TemplateSelector';
-import { AnalysisResult, CoachTab, WritingIssue } from './types';
+import { AnalysisResult, AppMode, CoachTab, WritingIssue } from './types';
 
 const API_BASE = 'http://localhost:3051';
 
@@ -12,9 +12,46 @@ function App() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showTemplates, setShowTemplates] = useState(true);
+  const [mode, setMode] = useState<AppMode>('DRAFTING');
   const [sessionId] = useState(() => `session_${Date.now()}`);
   const editorRef = useRef<HTMLTextAreaElement>(null);
   const analyzeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Integrity Guard: track active typing time and word count
+  const activeTimeRef = useRef(0);
+  const lastKeystrokeRef = useRef<number | null>(null);
+  const typingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const [wpmWarning, setWpmWarning] = useState(false);
+  const [fastTypist, setFastTypist] = useState(false);
+  const WPM_THRESHOLD = fastTypist ? 150 : 120;
+
+  // Track active typing time (only while actually typing, not idle)
+  useEffect(() => {
+    typingIntervalRef.current = setInterval(() => {
+      if (lastKeystrokeRef.current && Date.now() - lastKeystrokeRef.current < 2000) {
+        activeTimeRef.current += 500;
+      }
+    }, 500);
+    return () => {
+      if (typingIntervalRef.current) clearInterval(typingIntervalRef.current);
+    };
+  }, []);
+
+  const handleTextChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    lastKeystrokeRef.current = Date.now();
+    setEssayText(e.target.value);
+  }, []);
+
+  // Check WPM on every analysis
+  useEffect(() => {
+    if (analysis && activeTimeRef.current > 0) {
+      const minutes = activeTimeRef.current / 60000;
+      if (minutes > 0.5) { // Only check after 30s of active typing
+        const wpm = analysis.wordCount / minutes;
+        setWpmWarning(wpm > WPM_THRESHOLD);
+      }
+    }
+  }, [analysis]);
 
   // Autosave
   useEffect(() => {
@@ -30,16 +67,16 @@ function App() {
     return () => clearTimeout(timer);
   }, [essayText, sessionId]);
 
-  // Auto-analyze after typing stops
+  // Auto-analyze after typing stops (only in AUDITING mode)
   useEffect(() => {
     if (analyzeTimeoutRef.current) clearTimeout(analyzeTimeoutRef.current);
-    if (essayText.trim().length > 50) {
+    if (mode === 'AUDITING' && essayText.trim().length > 50) {
       analyzeTimeoutRef.current = setTimeout(() => handleAnalyze(true), 1500);
     }
     return () => {
       if (analyzeTimeoutRef.current) clearTimeout(analyzeTimeoutRef.current);
     };
-  }, [essayText]);
+  }, [essayText, mode]);
 
   // Keyboard shortcut
   useEffect(() => {
@@ -48,12 +85,15 @@ function App() {
       const cmdOrCtrl = isMac ? e.metaKey : e.ctrlKey;
       if (cmdOrCtrl && e.key === 'Enter') {
         e.preventDefault();
+        if (mode === 'DRAFTING') {
+          setMode('AUDITING');
+        }
         handleAnalyze();
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [essayText]);
+  }, [essayText, mode]);
 
   const handleAnalyze = useCallback(async (silent = false) => {
     if (!essayText.trim()) {
@@ -93,6 +133,25 @@ function App() {
     }
   };
 
+  const handleSentenceHover = useCallback((start: number, end: number) => {
+    if (editorRef.current && mode === 'AUDITING') {
+      editorRef.current.focus();
+      editorRef.current.setSelectionRange(start, end);
+    }
+  }, [mode]);
+
+  const handleSentenceLeave = useCallback(() => {
+    // Don't clear selection — let user keep it
+  }, []);
+
+  const handleModeToggle = () => {
+    const next = mode === 'DRAFTING' ? 'AUDITING' : 'DRAFTING';
+    setMode(next);
+    if (next === 'AUDITING' && essayText.trim().length > 50) {
+      handleAnalyze();
+    }
+  };
+
   const wordCount = essayText.split(/\s+/).filter(w => w.length > 0).length;
   const charCount = essayText.length;
   const readingTime = Math.max(1, Math.ceil(wordCount / 200));
@@ -104,47 +163,64 @@ function App() {
     return 'score-poor';
   };
 
+  const isDrafting = mode === 'DRAFTING';
+
   return (
-    <div className="app">
+    <div className={`app ${isDrafting ? 'mode-drafting' : 'mode-auditing'}`}>
       <header className="app-header">
         <h1>Write-Right</h1>
-        <div className="header-stats">
-          <span>{wordCount} words</span>
-          <span className="stat-divider">|</span>
-          <span>{charCount} chars</span>
-          <span className="stat-divider">|</span>
-          <span>{readingTime} min read</span>
-          {analysis && (
-            <>
-              <span className="stat-divider">|</span>
-              <span className={`quality-badge ${getScoreColor(analysis.qualityScore)}`}>
-                {analysis.qualityScore}/100
-              </span>
-            </>
-          )}
-          {analysis && analysis.readability.fleschReadingEase > 0 && (
-            <>
-              <span className="stat-divider">|</span>
-              <span className="readability-badge" title={`Grade ${analysis.readability.gradeLevel} - ${analysis.readability.audience}`}>
-                {analysis.readability.label}
-              </span>
-            </>
-          )}
-        </div>
+
+        {/* Stats: hidden in drafting, visible in auditing */}
+        {!isDrafting && (
+          <div className="header-stats">
+            <span>{wordCount} words</span>
+            <span className="stat-divider">|</span>
+            <span>{charCount} chars</span>
+            <span className="stat-divider">|</span>
+            <span>{readingTime} min read</span>
+            {analysis && (
+              <>
+                <span className="stat-divider">|</span>
+                <span className={`quality-badge ${getScoreColor(analysis.qualityScore)}`}>
+                  {analysis.qualityScore}/100
+                </span>
+              </>
+            )}
+            {analysis && analysis.readability.fleschReadingEase > 0 && (
+              <>
+                <span className="stat-divider">|</span>
+                <span className="readability-badge" title={`Grade ${analysis.readability.gradeLevel} - ${analysis.readability.audience}`}>
+                  {analysis.readability.label}
+                </span>
+              </>
+            )}
+          </div>
+        )}
+
+        {isDrafting && <div className="header-stats"><span className="drafting-label">Distraction-Free Mode</span></div>}
+
         <div className="header-actions">
           {essayText.length > 0 && (
-            <button className="clear-btn" onClick={() => { setEssayText(''); setAnalysis(null); setError(null); setShowTemplates(true); }}>
+            <button className="clear-btn" onClick={() => { setEssayText(''); setAnalysis(null); setError(null); setShowTemplates(true); setWpmWarning(false); activeTimeRef.current = 0; }}>
               Clear
             </button>
           )}
-          <button className="analyze-btn" onClick={() => handleAnalyze()} disabled={loading}>
-            {loading ? 'Analyzing...' : 'Analyze'} <kbd>⌘↵</kbd>
+          <button
+            className={`mode-toggle ${isDrafting ? 'toggle-drafting' : 'toggle-auditing'}`}
+            onClick={handleModeToggle}
+          >
+            {isDrafting ? 'Switch to Audit' : 'Switch to Draft'}
           </button>
+          {!isDrafting && (
+            <button className="analyze-btn" onClick={() => handleAnalyze()} disabled={loading}>
+              {loading ? 'Analyzing...' : 'Analyze'} <kbd>⌘↵</kbd>
+            </button>
+          )}
         </div>
       </header>
 
       <main className="app-content">
-        <section className="editor-section">
+        <section className={`editor-section ${isDrafting ? 'editor-zen' : ''}`}>
           {essayText === '' && showTemplates ? (
             <TemplateSelector onSelect={handleTemplateSelect} />
           ) : (
@@ -152,23 +228,31 @@ function App() {
               ref={editorRef}
               className="editor"
               value={essayText}
-              onChange={(e) => setEssayText(e.target.value)}
+              onChange={handleTextChange}
               placeholder="Start writing your essay here..."
               spellCheck={false}
             />
           )}
         </section>
 
-        <aside className="insights-section">
-          <InsightsPanel
-            activeTab={activeTab}
-            analysis={analysis}
-            loading={loading}
-            error={error}
-            onTabChange={setActiveTab}
-            onIssueClick={handleIssueClick}
-          />
-        </aside>
+        {!isDrafting && (
+          <aside className="insights-section insights-slide-in">
+            <InsightsPanel
+              activeTab={activeTab}
+              analysis={analysis}
+              loading={loading}
+              error={error}
+              essayText={essayText}
+              wpmWarning={wpmWarning}
+              fastTypist={fastTypist}
+              onFastTypistToggle={() => setFastTypist(v => !v)}
+              onTabChange={setActiveTab}
+              onIssueClick={handleIssueClick}
+              onSentenceHover={handleSentenceHover}
+              onSentenceLeave={handleSentenceLeave}
+            />
+          </aside>
+        )}
       </main>
     </div>
   );
