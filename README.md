@@ -77,9 +77,20 @@ npm install
 ```
 
 ### 2. Run the app
+
+**Fast mode** (built-in grammar heuristics, no Docker needed):
 ```bash
 npm run dev
 ```
+
+**Full mode** (LanguageTool grammar checking via Docker - one command):
+```bash
+npm run dev:full
+```
+
+That single command handles everything: starts the Docker container (reusing it on subsequent runs), waits for LanguageTool to be ready, then launches the app with the right env vars. First run downloads ~1GB; later runs start in ~5 seconds.
+
+Requires [Docker Desktop](https://www.docker.com/products/docker-desktop/) installed and running.
 
 ### 3. Write and analyze
 - Pick a template or start with a blank page
@@ -94,39 +105,17 @@ npm test
 
 ---
 
-## Enhanced Grammar with LanguageTool (Optional)
+## LanguageTool Container Management
 
-For more accurate grammar checking, you can run LanguageTool locally via Docker.
-
-### Setup
-
-**1. Install Docker Desktop** (if you don't have it):
-https://www.docker.com/products/docker-desktop/
-
-**2. Start LanguageTool server:**
-```bash
-docker run -d -p 8010:8010 silviof/docker-languagetool
-```
-This downloads ~1GB on first run and takes ~15 seconds to start.
-
-**3. Verify it's running:**
-```bash
-curl http://localhost:8010/v2/check -d "language=en-US&text=This is a tset."
-```
-You should see JSON with a spelling correction for "tset" -> "test".
-
-**4. Run Write-Right with LanguageTool:**
-```bash
-LANGUAGETOOL_MODE=api LANGUAGETOOL_URL=http://localhost:8010/v2/check npm run dev
-```
-
-### Without LanguageTool
-
-By default, Write-Right uses built-in heuristics for grammar. This is faster and requires no setup.
+The `dev:full` command is self-managing, but you can control the container directly:
 
 ```bash
-npm run dev
+npm run lt:start    # Start or resume the LanguageTool container
+npm run lt:stop     # Stop the container (keeps its state for faster restarts)
+npm run lt:logs     # Tail the container logs
 ```
+
+The container is named `write-right-languagetool`, so it won't collide with other Docker work. If another container is already bound to port 8010, `lt:start` will stop it automatically and take over.
 
 ---
 
@@ -210,28 +199,28 @@ src/
 ## Development
 
 ```bash
-# Run in development mode
-npm run dev
-
-# Run tests
-npm test
-
-# Run tests in watch mode
-npm run test:watch
-
-# With LanguageTool
-LANGUAGETOOL_MODE=api LANGUAGETOOL_URL=http://localhost:8010/v2/check npm run dev
-
-# Stop LanguageTool container
-docker stop $(docker ps -q --filter ancestor=silviof/docker-languagetool)
+npm run dev          # Fast mode (built-in grammar heuristics)
+npm run dev:full     # Full mode (auto-starts LanguageTool in Docker)
+npm run test         # Run the 55-test vitest suite
+npm run test:watch   # Tests in watch mode
+npm run lt:start     # Start/resume LanguageTool container
+npm run lt:stop      # Stop LanguageTool container
+npm run lt:logs      # Tail LanguageTool logs
+npm run build        # Production build
 ```
 
 ### Troubleshooting
 
-**Port already in use:**
+**Port already in use (5173 or 3051):**
 ```bash
 kill $(lsof -ti:5173) 2>/dev/null; kill $(lsof -ti:3051) 2>/dev/null
 npm run dev
+```
+
+**LanguageTool didn't start in time:**
+```bash
+npm run lt:logs      # See what LanguageTool is doing
+npm run lt:stop && npm run lt:start
 ```
 
 ---

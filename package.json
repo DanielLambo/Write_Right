@@ -5,9 +5,13 @@
   "main": "dist/main/index.js",
   "scripts": {
     "dev": "concurrently \"npm run dev:backend\" \"npm run dev:renderer\" \"npm run dev:electron\"",
+    "dev:full": "bash scripts/start-languagetool.sh && cross-env LANGUAGETOOL_MODE=api LANGUAGETOOL_URL=http://localhost:8010/v2/check npm run dev",
     "dev:backend": "tsx watch src/backend/server.ts",
     "dev:renderer": "vite",
     "dev:electron": "wait-on http://localhost:5173 http://localhost:3051 && cross-env NODE_ENV=development electron .",
+    "lt:start": "bash scripts/start-languagetool.sh",
+    "lt:stop": "bash scripts/stop-languagetool.sh",
+    "lt:logs": "docker logs -f write-right-languagetool",
     "build": "tsc && npm run build:renderer",
     "build:renderer": "vite build",
     "start": "electron .",
