@@ -1094,6 +1094,262 @@ body {
   user-select: none;
 }
 
+/* ==============================
+   Error Boundary
+   ============================== */
+
+.error-boundary {
+  padding: 40px;
+  max-width: 520px;
+  margin: 80px auto;
+  background: white;
+  border: 1px solid #e5e5e5;
+  border-radius: 12px;
+  text-align: center;
+}
+
+.error-boundary h2 {
+  font-size: 20px;
+  font-weight: 600;
+  color: #991b1b;
+  margin-bottom: 12px;
+}
+
+.error-boundary-msg {
+  font-family: monospace;
+  font-size: 13px;
+  background: #fef2f2;
+  padding: 10px;
+  border-radius: 6px;
+  color: #7f1d1d;
+  margin-bottom: 16px;
+  word-break: break-word;
+}
+
+.error-boundary-hint {
+  font-size: 13px;
+  color: #666;
+  margin-bottom: 20px;
+}
+
+.error-boundary-btn {
+  padding: 10px 24px;
+  background: #1a1a1a;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.error-boundary-btn:hover {
+  background: #333;
+}
+
+/* ==============================
+   Analyzed Indicator (silent auto-analyze)
+   ============================== */
+
+@keyframes fadeInOut {
+  0% { opacity: 0; transform: translateY(-4px); }
+  15% { opacity: 1; transform: translateY(0); }
+  85% { opacity: 1; transform: translateY(0); }
+  100% { opacity: 0; transform: translateY(0); }
+}
+
+.analyzed-indicator {
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 600;
+  background: #dcfce7;
+  color: #166534;
+  animation: fadeInOut 1.5s ease-out;
+}
+
+/* ==============================
+   Export Menu
+   ============================== */
+
+.export-wrap {
+  position: relative;
+}
+
+.export-btn {
+  padding: 8px 14px;
+  background: none;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  font-size: 13px;
+  color: #1a1a1a;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.export-btn:hover {
+  background: #f5f5f5;
+  border-color: #ccc;
+}
+
+.export-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  background: white;
+  border: 1px solid #e5e5e5;
+  border-radius: 6px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+  overflow: hidden;
+  z-index: 10;
+  min-width: 180px;
+  animation: fadeIn 0.15s ease-out;
+}
+
+.export-menu button {
+  display: block;
+  width: 100%;
+  padding: 10px 14px;
+  border: none;
+  background: none;
+  text-align: left;
+  font-size: 13px;
+  color: #1a1a1a;
+  cursor: pointer;
+  transition: background 0.1s;
+}
+
+.export-menu button:hover {
+  background: #f5f5f5;
+}
+
+/* ==============================
+   Clear Confirmation
+   ============================== */
+
+.clear-confirm {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  background: #fef2f2;
+  border: 1px solid #fca5a5;
+  border-radius: 6px;
+  font-size: 12px;
+  color: #991b1b;
+  animation: fadeIn 0.15s ease-out;
+}
+
+.clear-confirm-yes,
+.clear-confirm-no {
+  padding: 4px 10px;
+  border: none;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.clear-confirm-yes {
+  background: #991b1b;
+  color: white;
+}
+
+.clear-confirm-yes:hover {
+  background: #7f1d1d;
+}
+
+.clear-confirm-no {
+  background: white;
+  color: #666;
+  border: 1px solid #ddd;
+}
+
+.clear-confirm-no:hover {
+  background: #f5f5f5;
+}
+
+/* ==============================
+   Draft Recovery Banner
+   ============================== */
+
+.draft-recovery-banner {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  padding: 14px 20px;
+  background: #eff6ff;
+  border-bottom: 1px solid #bfdbfe;
+  animation: slideDown 0.25s ease-out;
+}
+
+@keyframes slideDown {
+  from { transform: translateY(-100%); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+.draft-recovery-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.draft-recovery-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #1e3a8a;
+  margin-bottom: 4px;
+}
+
+.draft-recovery-stats {
+  font-weight: 400;
+  color: #475569;
+}
+
+.draft-recovery-preview {
+  font-size: 12px;
+  color: #475569;
+  font-style: italic;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.draft-recovery-actions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.draft-recovery-restore {
+  padding: 6px 14px;
+  background: #1e40af;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.draft-recovery-restore:hover {
+  background: #1e3a8a;
+}
+
+.draft-recovery-dismiss {
+  padding: 6px 14px;
+  background: none;
+  color: #475569;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.draft-recovery-dismiss:hover {
+  background: #f1f5f9;
+}
+
 /* Scrollbar */
 .content::-webkit-scrollbar {
   width: 6px;

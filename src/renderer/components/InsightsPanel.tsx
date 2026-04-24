@@ -1,8 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { AnalysisResult, CoachTab, WritingIssue, IssueCategory, ReverseOutlineResult } from '../types';
 import SentenceRhythm from './SentenceRhythm';
-
-const API_BASE = 'http://localhost:3051';
+import { API_BASE, ENDPOINTS } from '../config';
 
 interface Props {
   activeTab: CoachTab;
@@ -47,7 +46,7 @@ export default function InsightsPanel({ activeTab, analysis, loading, error, ess
   // Fetch reverse outline when structure tab is active
   useEffect(() => {
     if (activeTab === 'structure' && essayText.trim().length > 50) {
-      fetch(`${API_BASE}/reverse-outline`, {
+      fetch(`${API_BASE}${ENDPOINTS.reverseOutline}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ essayText }),

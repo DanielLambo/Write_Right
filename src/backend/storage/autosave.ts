@@ -24,3 +24,41 @@ export function loadDraft(sessionId: string): string | null {
   }
   return null;
 }
+
+export interface DraftMeta {
+  sessionId: string;
+  wordCount: number;
+  charCount: number;
+  preview: string;
+  modifiedAt: number;
+}
+
+export function getLatestDraft(): DraftMeta | null {
+  if (!fs.existsSync(DRAFTS_DIR)) return null;
+  const files = fs.readdirSync(DRAFTS_DIR).filter(f => f.startsWith('draft_') && f.endsWith('.txt'));
+  if (files.length === 0) return null;
+
+  let latest: { file: string; mtime: number } | null = null;
+  for (const file of files) {
+    const stat = fs.statSync(path.join(DRAFTS_DIR, file));
+    if (!latest || stat.mtimeMs > latest.mtime) {
+      latest = { file, mtime: stat.mtimeMs };
+    }
+  }
+  if (!latest) return null;
+
+  const content = fs.readFileSync(path.join(DRAFTS_DIR, latest.file), 'utf8');
+  if (!content.trim()) return null;
+
+  const sessionId = latest.file.replace(/^draft_/, '').replace(/\.txt$/, '');
+  const wordCount = content.split(/\s+/).filter(w => w.length > 0).length;
+  const preview = content.trim().substring(0, 140);
+
+  return {
+    sessionId,
+    wordCount,
+    charCount: content.length,
+    preview,
+    modifiedAt: latest.mtime,
+  };
+}
